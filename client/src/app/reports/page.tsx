@@ -1,0 +1,211 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { useListReportsQuery } from "@/store/api";
+import { useAppSelector } from "@/store/hooks";
+import type { Category, Severity, ReportFilters } from "@/lib/types";
+import { AppHeader } from "@/components/layout/AppHeader";
+import { ReportDetailModal } from "@/components/reports/ReportDetailModal";
+import { cn } from "@/lib/utils";
+
+const CATEGORIES: Category[] = [
+  "HUMAN_FACTORS",
+  "AIRCRAFT_SYSTEMS",
+  "WEATHER",
+  "ATC_COMMUNICATION",
+  "RUNWAY_SAFETY",
+  "WILDLIFE",
+  "PROCEDURAL",
+  "OTHER",
+];
+const SEVERITIES: Severity[] = ["LOW", "MEDIUM", "HIGH"];
+
+const SEVERITY_TEXT: Record<Severity, string> = {
+  LOW: "text-emerald-600 dark:text-emerald-400",
+  MEDIUM: "text-amber-600 dark:text-amber-400",
+  HIGH: "text-rose-600 dark:text-rose-400",
+};
+
+function formatCategory(category: string): string {
+  const words = category.replace(/_/g, " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+const SELECT_CLASS =
+  "rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-brand";
+
+function TriageContent() {
+  const [filters, setFilters] = useState<ReportFilters>({ page: 1 });
+  const [openReportId, setOpenReportId] = useState<string | null>(null);
+  const { data, isFetching } = useListReportsQuery(filters);
+
+  // Any filter change resets to the first page.
+  function updateFilter(changes: Partial<ReportFilters>) {
+    setFilters((previous) => ({ ...previous, ...changes, page: 1 }));
+  }
+
+  const page = data?.page ?? 1;
+  const totalPages = data?.pages ?? 1;
+
+  return (
+    <main className="mx-auto w-full max-w-4xl px-4 py-8">
+      <h1 className="text-xl font-semibold">Report triage</h1>
+      <p className="mt-1 text-sm text-muted">
+        Browse the corpus by AI-assigned category and severity.
+      </p>
+
+      {/* Filters */}
+      <div className="mt-5 flex flex-wrap items-center gap-2">
+        <select
+          value={filters.category ?? ""}
+          onChange={(event) =>
+            updateFilter({ category: (event.target.value || undefined) as Category | undefined })
+          }
+          className={SELECT_CLASS}
+        >
+          <option value="">All categories</option>
+          {CATEGORIES.map((category) => (
+            <option key={category} value={category}>
+              {formatCategory(category)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={filters.severity ?? ""}
+          onChange={(event) =>
+            updateFilter({ severity: (event.target.value || undefined) as Severity | undefined })
+          }
+          className={SELECT_CLASS}
+        >
+          <option value="">All severities</option>
+          {SEVERITIES.map((severity) => (
+            <option key={severity} value={severity}>
+              {severity}
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="date"
+          value={filters.from ?? ""}
+          onChange={(event) => updateFilter({ from: event.target.value || undefined })}
+          className={SELECT_CLASS}
+          aria-label="From date"
+        />
+        <input
+          type="date"
+          value={filters.to ?? ""}
+          onChange={(event) => updateFilter({ to: event.target.value || undefined })}
+          className={SELECT_CLASS}
+          aria-label="To date"
+        />
+
+        {(filters.category || filters.severity || filters.from || filters.to) && (
+          <button
+            type="button"
+            onClick={() => setFilters({ page: 1 })}
+            className="text-sm text-brand hover:underline"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* List */}
+      <div className="mt-4 overflow-hidden rounded-xl border border-border">
+        {isFetching && !data ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-brand" />
+          </div>
+        ) : !data || data.reports.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted">No reports match these filters.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {data.reports.map((report) => (
+              <li key={report.id}>
+                <button
+                  type="button"
+                  onClick={() => setOpenReportId(report.id)}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-surface-2"
+                >
+                  <span className="w-16 shrink-0 font-mono text-xs text-muted">{report.acn}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {report.synopsis ?? "Untitled report"}
+                  </span>
+                  {report.category && (
+                    <span className="hidden shrink-0 text-xs text-muted sm:inline">
+                      {formatCategory(report.category)}
+                    </span>
+                  )}
+                  {report.severity && (
+                    <span
+                      className={cn("shrink-0 text-xs font-medium", SEVERITY_TEXT[report.severity])}
+                    >
+                      {report.severity}
+                    </span>
+                  )}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Pagination */}
+      {data && totalPages > 1 && (
+        <div className="mt-4 flex items-center justify-center gap-3 text-sm">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setFilters((previous) => ({ ...previous, page: page - 1 }))}
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40"
+          >
+            <ChevronLeft className="h-4 w-4" /> Prev
+          </button>
+          <span className="text-muted">
+            Page {page} of {totalPages} · {data.total} reports
+          </span>
+          <button
+            type="button"
+            disabled={page >= totalPages}
+            onClick={() => setFilters((previous) => ({ ...previous, page: page + 1 }))}
+            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40"
+          >
+            Next <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {openReportId && (
+        <ReportDetailModal reportId={openReportId} onClose={() => setOpenReportId(null)} />
+      )}
+    </main>
+  );
+}
+
+export default function ReportsPage() {
+  const router = useRouter();
+  const { user, status } = useAppSelector((state) => state.auth);
+  const canView = user?.role === "ANALYST" || user?.role === "ADMIN";
+
+  useEffect(() => {
+    if (status === "guest") router.replace("/login");
+    else if (status === "authenticated" && !canView) router.replace("/chat");
+  }, [status, canView, router]);
+
+  return (
+    <div className="flex min-h-dvh flex-col">
+      <AppHeader />
+      {status === "authenticated" && canView ? (
+        <TriageContent />
+      ) : (
+        <div className="flex flex-1 justify-center py-16 text-muted">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      )}
+    </div>
+  );
+}
