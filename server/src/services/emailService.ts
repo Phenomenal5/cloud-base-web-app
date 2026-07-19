@@ -1,17 +1,35 @@
+import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import AppError from "../utils/AppError.js";
 
-// ─── Email service (Brevo transactional API) ──────────
+// ─── Email service (Brevo SMTP relay via nodemailer) ──
 //
-// Sends via Brevo's REST API using native fetch — no SDK dependency. When
-// BREVO_API_KEY isn't set (local dev), it logs the message instead so the
-// verification flow is fully exercisable without a provider account.
+// Sends through Brevo's SMTP relay (smtp-relay.brevo.com). nodemailer is just the
+// SMTP client that speaks the protocol to Brevo — it's not a separate provider.
+// When SMTP_USER/SMTP_PASS aren't set (local dev), it logs the message instead so
+// the verification flow is fully exercisable without a provider account.
 //
-// NOTE: Brevo authenticates with an `api-key` header (not Bearer), and the
-// sender email must be a verified sender/domain in your Brevo account.
+// NOTE: BREVO_SMTP_USER is the Brevo SMTP login (…@smtp-brevo.com) and
+// BREVO_SMTP_KEY is a Brevo "SMTP key" (dashboard → SMTP & API → SMTP), NOT your
+// account password. EMAIL_FROM must be a sender verified in your Brevo account.
 
-const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
+const isEmailConfigured = Boolean(env.smtpUser && env.smtpPass);
+
+// One pooled transporter, created lazily on first send.
+let transporter: Transporter | null = null;
+function getTransporter(): Transporter {
+  if (!transporter) {
+    transporter = nodemailer.createTransport({
+      host: env.smtpHost,
+      port: env.smtpPort,
+      // Port 465 uses implicit TLS; 587 (Brevo's default) upgrades via STARTTLS.
+      secure: env.smtpPort === 465,
+      auth: { user: env.smtpUser, pass: env.smtpPass },
+    });
+  }
+  return transporter;
+}
 
 interface EmailMessage {
   to: string;
@@ -21,12 +39,12 @@ interface EmailMessage {
 }
 
 async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<void> {
-  if (!env.brevoApiKey) {
+  if (!isEmailConfigured) {
     // NEVER log a code in production — the message body contains verification /
-    // reset codes. In prod a missing key is a hard misconfig, not a fallback.
-    // (validateEnv makes BREVO_API_KEY prod-required, so this is defense-in-depth.)
+    // reset codes. In prod, unset SMTP creds are a hard misconfig, not a fallback.
+    // (validateEnv makes BREVO_SMTP_USER/BREVO_SMTP_KEY prod-required — defense-in-depth.)
     if (env.isProduction) {
-      logger.error("BREVO_API_KEY is not set — refusing to send email.");
+      logger.error("SMTP credentials are not set — refusing to send email.");
       throw new AppError("Email service is not configured.", 500);
     }
     // Dev fallback: surface the content (incl. any code) in the logs so the
@@ -35,25 +53,16 @@ async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<voi
     return;
   }
 
-  const response = await fetch(BREVO_ENDPOINT, {
-    method: "POST",
-    headers: {
-      "api-key": env.brevoApiKey,
-      "Content-Type": "application/json",
-      accept: "application/json",
-    },
-    body: JSON.stringify({
-      sender: { name: env.emailFromName, email: env.emailFrom },
-      to: [{ email: to }],
+  try {
+    await getTransporter().sendMail({
+      from: { name: env.emailFromName, address: env.emailFrom },
+      to,
       subject,
-      htmlContent: html,
-      textContent: text,
-    }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    logger.error(`Brevo send failed (${response.status}): ${detail}`);
+      text,
+      html,
+    });
+  } catch (error) {
+    logger.error(`SMTP send failed: ${error instanceof Error ? error.message : String(error)}`);
     // 502: our upstream (the email provider) failed, not the client.
     throw new AppError("Failed to send email. Please try again shortly.", 502);
   }

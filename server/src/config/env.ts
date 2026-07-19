@@ -56,10 +56,16 @@ export const env = {
   jwtAccessTtlSeconds: Number(opt("JWT_ACCESS_TTL_SECONDS", "900")), // 15 minutes
   refreshTtlDays: Number(opt("REFRESH_TTL_DAYS", "30")),
 
-  // ── Email (Brevo transactional API) ─────────────────
-  // Optional at boot: without a key, emailService logs codes to the console so
-  // the flow is testable in dev. Real sends require the key + a verified sender.
-  brevoApiKey: opt("BREVO_API_KEY", ""),
+  // ── Email (Brevo SMTP relay) ────────────────────────
+  // Sent via SMTP (nodemailer) through Brevo's relay. Optional at boot: without
+  // BREVO_SMTP_USER/BREVO_SMTP_KEY, emailService logs codes to the console so the
+  // flow is testable in dev. BREVO_SMTP_USER is the SMTP login (…@smtp-brevo.com);
+  // BREVO_SMTP_KEY is the Brevo "SMTP key" (dashboard → SMTP & API → SMTP) — NOT
+  // your login password and NOT the HTTP API key (xkeysib-…).
+  smtpHost: opt("BREVO_SMTP_HOST", "smtp-relay.brevo.com"),
+  smtpPort: Number(opt("BREVO_SMTP_PORT", "587")),
+  smtpUser: opt("BREVO_SMTP_USER", ""),
+  smtpPass: opt("BREVO_SMTP_KEY", ""),
   emailFrom: opt("EMAIL_FROM", "no-reply@aerolens.app"),
   emailFromName: opt("EMAIL_FROM_NAME", "AeroLens"),
   verificationCodeTtlMinutes: Number(opt("VERIFICATION_CODE_TTL_MINUTES", "15")),
@@ -84,7 +90,7 @@ export const env = {
   // ── Grounded Q&A ────────────────────────────────────
   // NOTE: output-token caps (answer/summary/categorization) are hard constants in
   // their services (FR-18) — deliberately NOT env-tunable so cost ceilings hold.
-  chatModel: opt("CHAT_MODEL", "gpt-4o-mini"),
+  chatModel: opt("CHAT_MODEL", "gpt-5.4-nano"),
   retrievalTopN: Number(opt("RETRIEVAL_TOP_N", "5")),
   // Minimum cosine similarity for a chunk to count as "relevant". 0 disables the
   // filter (kNN always returns something). Raise it (~0.3 with real embeddings)
@@ -140,7 +146,13 @@ if (env.jwtAccessSecret.length < 32) {
 if (env.isProduction) {
   // Checked against the RAW env (not env.* which carries localhost defaults for
   // CORS/PUBLIC_BASE_URL), so the dev defaults can't satisfy a prod boot.
-  const PROD_REQUIRED = ["OPENAI_API_KEY", "BREVO_API_KEY", "CORS_ORIGINS", "PUBLIC_BASE_URL"];
+  const PROD_REQUIRED = [
+    "OPENAI_API_KEY",
+    "BREVO_SMTP_USER",
+    "BREVO_SMTP_KEY",
+    "CORS_ORIGINS",
+    "PUBLIC_BASE_URL",
+  ];
   const missing = PROD_REQUIRED.filter((name) => !process.env[name]?.trim());
   if (missing.length > 0) {
     failBoot(`Missing required production environment variables: ${missing.join(", ")}`);
