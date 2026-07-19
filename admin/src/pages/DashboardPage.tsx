@@ -1,4 +1,11 @@
-import { Users as UsersIcon, FileText, MessageSquare, Cpu, Loader2, type LucideIcon } from 'lucide-react'
+import {
+  Users as UsersIcon,
+  FileText,
+  MessageSquare,
+  Cpu,
+  Loader2,
+  type LucideIcon,
+} from 'lucide-react'
 import { useMetricsQuery } from '@/store/api'
 import type { AiOperation, JobStatus } from '@/lib/types'
 import { cn } from '@/lib/cn'
@@ -92,7 +99,8 @@ export function DashboardPage() {
         <section className='rounded-xl border border-border bg-surface p-4'>
           <h2 className='text-sm font-semibold'>Ingestion jobs</h2>
           <p className='mt-0.5 text-xs text-muted'>
-            {metrics.jobs.total} total · {formatNumber(metrics.jobs.reportsIngested)} reports ingested
+            {metrics.jobs.total} total · {formatNumber(metrics.jobs.reportsIngested)} reports
+            ingested
           </p>
           <ul className='mt-3 flex flex-col gap-1.5 text-sm'>
             {(Object.keys(metrics.jobs.byStatus) as JobStatus[]).map((status) => (
@@ -110,7 +118,9 @@ export function DashboardPage() {
             {(Object.keys(metrics.tokens.byOperation) as AiOperation[]).map((operation) => (
               <li key={operation} className='flex items-center justify-between'>
                 <span>{formatOperation(operation)}</span>
-                <span className='text-muted'>{formatNumber(metrics.tokens.byOperation[operation])}</span>
+                <span className='text-muted'>
+                  {formatNumber(metrics.tokens.byOperation[operation])}
+                </span>
               </li>
             ))}
           </ul>

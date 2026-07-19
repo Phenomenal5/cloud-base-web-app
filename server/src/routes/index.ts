@@ -24,7 +24,11 @@ const router = Router();
 // Interactive docs at /api/docs, machine-readable spec at /api/docs.json.
 // Non-production only — don't publish the full API surface to the internet.
 if (!env.isProduction) {
-  router.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: "AeroLens API" }));
+  router.use(
+    "/docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerSpec, { customSiteTitle: "AeroLens API" }),
+  );
   router.get("/docs.json", (_req, res) => res.json(swaggerSpec));
 }
 

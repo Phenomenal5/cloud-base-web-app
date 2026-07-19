@@ -57,7 +57,7 @@ export const listConversations = catchAsync(async (req, res) => {
 // ─── GET /api/conversations/:id ───────────────────────
 // One conversation with its messages (oldest → newest).
 export const getConversation = catchAsync(async (req, res) => {
-  const conversation = await getOwnedConversation(req.user!.id, (req.params.id as string));
+  const conversation = await getOwnedConversation(req.user!.id, req.params.id as string);
 
   const messages = await prisma.message.findMany({
     where: { conversationId: conversation.id },
@@ -71,7 +71,7 @@ export const getConversation = catchAsync(async (req, res) => {
 // ─── PATCH /api/conversations/:id ─────────────────────
 // Rename / pin / archive (FR-27). Only the provided fields change.
 export const updateConversation = catchAsync(async (req, res) => {
-  await getOwnedConversation(req.user!.id, (req.params.id as string)); // ownership check
+  await getOwnedConversation(req.user!.id, req.params.id as string); // ownership check
   const { title, pinned, archived } = req.body as {
     title?: string;
     pinned?: boolean;
@@ -79,7 +79,7 @@ export const updateConversation = catchAsync(async (req, res) => {
   };
 
   const conversation = await prisma.conversation.update({
-    where: { id: (req.params.id as string) },
+    where: { id: req.params.id as string },
     data: { title, pinned, archived },
   });
 
@@ -89,7 +89,7 @@ export const updateConversation = catchAsync(async (req, res) => {
 // ─── DELETE /api/conversations/:id ────────────────────
 // Cascades to messages (FR-27 delete; PRD §8.2 users can delete own conversations).
 export const deleteConversation = catchAsync(async (req, res) => {
-  await getOwnedConversation(req.user!.id, (req.params.id as string));
-  await prisma.conversation.delete({ where: { id: (req.params.id as string) } });
+  await getOwnedConversation(req.user!.id, req.params.id as string);
+  await prisma.conversation.delete({ where: { id: req.params.id as string } });
   res.status(200).json({ message: "Conversation deleted" });
 });

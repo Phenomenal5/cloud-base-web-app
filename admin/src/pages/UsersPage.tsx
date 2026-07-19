@@ -132,9 +132,7 @@ export function UsersPage() {
                       <select
                         value={user.role}
                         disabled={isSelf}
-                        onChange={(event) =>
-                          handleRoleChange(user.id, event.target.value as Role)
-                        }
+                        onChange={(event) => handleRoleChange(user.id, event.target.value as Role)}
                         className='rounded-md border border-border bg-surface px-2 py-1 text-xs disabled:opacity-50'
                       >
                         {ROLES.map((role) => (

@@ -33,8 +33,7 @@ function fromPrismaKnownError(error: Prisma.PrismaClientKnownRequestError): AppE
 // so the mapping is in one place).
 function isJwtError(err: unknown): boolean {
   return (
-    err instanceof Error &&
-    (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError")
+    err instanceof Error && (err.name === "JsonWebTokenError" || err.name === "TokenExpiredError")
   );
 }
 

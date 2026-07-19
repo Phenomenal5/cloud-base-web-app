@@ -4,7 +4,11 @@ import { logger } from "../config/logger.js";
 import { env } from "../config/env.js";
 import { initSse, sendEvent } from "../utils/sse.js";
 import { semanticSearch } from "../services/retrievalService.js";
-import { streamGroundedAnswer, rewriteFollowUp, type ConversationTurn } from "../services/llmService.js";
+import {
+  streamGroundedAnswer,
+  rewriteFollowUp,
+  type ConversationTurn,
+} from "../services/llmService.js";
 import {
   createConversation,
   getOwnedConversation,
@@ -125,9 +129,7 @@ export const ask = catchAsync(async (req, res) => {
       try {
         await addMessage(conversationId, "ASSISTANT", full, citations);
       } catch (persistError) {
-        logger.error(
-          persistError instanceof Error ? persistError.message : String(persistError),
-        );
+        logger.error(persistError instanceof Error ? persistError.message : String(persistError));
       }
     }
     // Audit + quota counter (FR-33).

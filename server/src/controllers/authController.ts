@@ -92,7 +92,8 @@ export const register = catchAsync(async (req, res) => {
     await issueVerificationCode(updated.id, updated.email);
 
     res.status(200).json({
-      message: "You already started signing up with this email. We've sent a new verification code.",
+      message:
+        "You already started signing up with this email. We've sent a new verification code.",
       data: { user: toPublicUser(updated), needsVerification: true },
     });
     return;
@@ -256,9 +257,7 @@ export const me = catchAsync(async (req, res) => {
 // Runs after passport's Google strategy. passport set req.user to the resolved
 // user; we mint our own JWT cookie session and redirect back to the frontend.
 export const googleCallback = catchAsync(async (req, res) => {
-  const user = req.user as unknown as
-    | { id: string; role: Role; status: UserStatus }
-    | undefined;
+  const user = req.user as unknown as { id: string; role: Role; status: UserStatus } | undefined;
 
   if (!user) {
     res.redirect(env.oauthFailureRedirect);

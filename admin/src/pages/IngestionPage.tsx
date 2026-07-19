@@ -52,7 +52,11 @@ export function IngestionPage() {
           disabled={isLoading}
           className='inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-medium text-brand-contrast transition hover:bg-brand-hover disabled:opacity-60'
         >
-          {isLoading ? <Loader2 className='h-4 w-4 animate-spin' /> : <Upload className='h-4 w-4' />}
+          {isLoading ? (
+            <Loader2 className='h-4 w-4 animate-spin' />
+          ) : (
+            <Upload className='h-4 w-4' />
+          )}
           Upload CSV
         </button>
         <input

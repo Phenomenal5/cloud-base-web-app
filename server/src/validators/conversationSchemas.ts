@@ -12,5 +12,6 @@ export const updateConversationSchema = yup
   .test(
     "at-least-one",
     "Provide at least one of: title, pinned, archived.",
-    (value) => value.title !== undefined || value.pinned !== undefined || value.archived !== undefined,
+    (value) =>
+      value.title !== undefined || value.pinned !== undefined || value.archived !== undefined,
   );

@@ -1,9 +1,5 @@
 import { Router } from "express";
-import {
-  listNotifications,
-  markAllRead,
-  markRead,
-} from "../controllers/notificationController.js";
+import { listNotifications, markAllRead, markRead } from "../controllers/notificationController.js";
 import { protect } from "../middlewares/auth.js";
 
 // ─── /api/notifications ───────────────────────────────

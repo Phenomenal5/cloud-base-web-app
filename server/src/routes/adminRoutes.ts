@@ -1,9 +1,5 @@
 import { Router } from "express";
-import {
-  listUsers,
-  updateUserRole,
-  updateUserStatus,
-} from "../controllers/adminUserController.js";
+import { listUsers, updateUserRole, updateUserStatus } from "../controllers/adminUserController.js";
 import { broadcastNotification } from "../controllers/notificationController.js";
 import {
   uploadIngestion,

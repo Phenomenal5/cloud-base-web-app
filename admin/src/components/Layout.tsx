@@ -18,7 +18,9 @@ export function Layout() {
   const [logout] = useLogoutMutation()
 
   async function handleSignOut() {
-    await logout().unwrap().catch(() => undefined)
+    await logout()
+      .unwrap()
+      .catch(() => undefined)
     navigate('/login')
   }
 

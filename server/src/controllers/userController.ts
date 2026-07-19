@@ -13,7 +13,9 @@ async function removeAvatarFile(filename: string | null): Promise<void> {
   try {
     await unlink(join(AVATAR_DIR, filename));
   } catch (error) {
-    logger.warn(`Could not delete avatar ${filename}: ${error instanceof Error ? error.message : String(error)}`);
+    logger.warn(
+      `Could not delete avatar ${filename}: ${error instanceof Error ? error.message : String(error)}`,
+    );
   }
 }
 

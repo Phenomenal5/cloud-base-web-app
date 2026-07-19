@@ -115,7 +115,12 @@ router.post("/verify-email", authLimiter, validate(verifyEmailSchema), verifyEma
  *     responses:
  *       200: { description: Generic acknowledgement }
  */
-router.post("/resend-verification", authLimiter, validate(resendVerificationSchema), resendVerification);
+router.post(
+  "/resend-verification",
+  authLimiter,
+  validate(resendVerificationSchema),
+  resendVerification,
+);
 
 /**
  * @openapi

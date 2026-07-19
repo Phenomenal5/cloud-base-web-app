@@ -22,7 +22,9 @@ export function LoginPage() {
       const user = await login({ email: email.trim().toLowerCase(), password }).unwrap()
       if (user.role !== 'ADMIN') {
         // Not an admin — drop the session we just created.
-        await logout().unwrap().catch(() => undefined)
+        await logout()
+          .unwrap()
+          .catch(() => undefined)
         toast.error('This account is not an administrator.')
         return
       }

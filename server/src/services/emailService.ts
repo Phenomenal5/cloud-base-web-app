@@ -64,7 +64,12 @@ export async function sendVerificationCode(to: string, code: string): Promise<vo
   const minutes = env.verificationCodeTtlMinutes;
   const subject = "Your AeroLens verification code";
   const text = `Your AeroLens verification code is ${code}. It expires in ${minutes} minutes. If you didn't request this, you can ignore this email.`;
-  const html = codeEmailHtml("Verify your email", "Use this code to finish setting up your AeroLens account:", code, minutes);
+  const html = codeEmailHtml(
+    "Verify your email",
+    "Use this code to finish setting up your AeroLens account:",
+    code,
+    minutes,
+  );
 
   await sendEmail({ to, subject, html, text });
 }
@@ -74,7 +79,12 @@ export async function sendPasswordResetCode(to: string, code: string): Promise<v
   const minutes = env.passwordResetTtlMinutes;
   const subject = "Your AeroLens password reset code";
   const text = `Your AeroLens password reset code is ${code}. It expires in ${minutes} minutes. If you didn't request a reset, you can safely ignore this email.`;
-  const html = codeEmailHtml("Reset your password", "Use this code to set a new password:", code, minutes);
+  const html = codeEmailHtml(
+    "Reset your password",
+    "Use this code to set a new password:",
+    code,
+    minutes,
+  );
 
   await sendEmail({ to, subject, html, text });
 }

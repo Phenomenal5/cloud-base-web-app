@@ -18,8 +18,7 @@ export interface AxiosQueryError {
 }
 
 export const axiosBaseQuery =
-  (): BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQueryError> =>
-  async (queryArgs) => {
+  (): BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQueryError> => async (queryArgs) => {
     const requestConfig: AxiosQueryArgs =
       typeof queryArgs === 'string' ? { url: queryArgs } : queryArgs
     try {

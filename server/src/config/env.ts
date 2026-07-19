@@ -104,7 +104,10 @@ export const env = {
   // must match a redirect URI registered in Google Cloud Console.
   googleClientId: opt("GOOGLE_CLIENT_ID", ""),
   googleClientSecret: opt("GOOGLE_CLIENT_SECRET", ""),
-  googleCallbackUrl: opt("GOOGLE_CALLBACK_URL", `http://localhost:${port}/api/auth/google/callback`),
+  googleCallbackUrl: opt(
+    "GOOGLE_CALLBACK_URL",
+    `http://localhost:${port}/api/auth/google/callback`,
+  ),
   // Where to send the browser after OAuth resolves.
   oauthSuccessRedirect: opt("OAUTH_SUCCESS_REDIRECT", "http://localhost:3000/auth/callback"),
   oauthFailureRedirect: opt("OAUTH_FAILURE_REDIRECT", "http://localhost:3000/login?error=oauth"),

@@ -30,7 +30,11 @@ const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQu
 
   if (result.error?.status === 401 && !isAuthRoute) {
     if (!refreshPromise) {
-      refreshPromise = rawBaseQuery({ url: '/auth/refresh', method: 'POST' }, baseQueryApi, extraOptions)
+      refreshPromise = rawBaseQuery(
+        { url: '/auth/refresh', method: 'POST' },
+        baseQueryApi,
+        extraOptions,
+      )
     }
     const refreshResult = await refreshPromise
     refreshPromise = null
@@ -54,7 +58,10 @@ export const api = createApi({
     metrics: builder.query<Metrics, void>({
       query: () => '/admin/metrics',
       transformResponse: (response: ApiEnvelope<Metrics>) => response.data,
-      providesTags: [{ type: 'User', id: 'LIST' }, { type: 'IngestionJob', id: 'LIST' }],
+      providesTags: [
+        { type: 'User', id: 'LIST' },
+        { type: 'IngestionJob', id: 'LIST' },
+      ],
     }),
 
     // ── Session ──
@@ -91,7 +98,11 @@ export const api = createApi({
       providesTags: [{ type: 'User', id: 'LIST' }],
     }),
     updateUserRole: builder.mutation<unknown, { id: string; role: Role }>({
-      query: ({ id, role }) => ({ url: `/admin/users/${id}/role`, method: 'PATCH', body: { role } }),
+      query: ({ id, role }) => ({
+        url: `/admin/users/${id}/role`,
+        method: 'PATCH',
+        body: { role },
+      }),
       invalidatesTags: [{ type: 'User', id: 'LIST' }],
     }),
     updateUserStatus: builder.mutation<unknown, { id: string; status: UserStatus }>({

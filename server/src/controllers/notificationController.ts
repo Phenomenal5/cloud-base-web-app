@@ -25,7 +25,9 @@ export const markAllRead = catchAsync(async (req, res) => {
     where: { userId: req.user!.id, readAt: null },
     data: { readAt: new Date() },
   });
-  res.status(200).json({ message: "All notifications marked read", data: { updated: result.count } });
+  res
+    .status(200)
+    .json({ message: "All notifications marked read", data: { updated: result.count } });
 });
 
 // ─── PATCH /api/notifications/:id/read ────────────────
