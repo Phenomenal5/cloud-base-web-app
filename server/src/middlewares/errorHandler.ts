@@ -44,7 +44,8 @@ export function globalErrorHandler(
   err: unknown,
   _req: Request,
   res: Response,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- 4th arg required for Express to treat this as an error handler
+  // 4th arg required for Express to treat this as an error handler (the `_`
+  // prefix marks it intentionally unused, per the lint config).
   _next: NextFunction,
 ) {
   let error: AppError;

@@ -18,6 +18,9 @@ export default defineConfig([
       globals: { ...globals.node },
     },
     rules: {
+      // Use the Winston logger, not console. The few intentional boot-time
+      // console calls (before the logger is up) carry their own disable comments.
+      "no-console": "warn",
       // Underscore-prefixed args/vars/catch bindings are intentionally unused
       // (house convention: `_req`, `_file`, `_error`).
       "@typescript-eslint/no-unused-vars": [
