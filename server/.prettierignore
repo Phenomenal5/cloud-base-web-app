@@ -1,0 +1,10 @@
+node_modules
+dist
+build
+coverage
+src/generated
+prisma
+uploads
+*.md
+.env*
+package-lock.json
