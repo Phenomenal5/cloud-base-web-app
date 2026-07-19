@@ -1,14 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 
 // Toggles the `.dark` class on <html> and persists the choice. The initial class
 // is set in main.tsx before render, so there's no flash.
 export function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false)
-
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains('dark'))
-  }, [])
+  // Lazy init from the class main.tsx set before render — SPA (no SSR), so
+  // reading the DOM here is safe and avoids a setState-in-effect cascade.
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
 
   function toggleTheme() {
     const nextIsDark = !isDark
