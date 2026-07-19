@@ -1,0 +1,377 @@
+// AeroLens — Prisma schema
+// Docs: https://pris.ly/d/prisma-schema
+//
+// We start with the Identity zone (just `User` for now). Corpus, conversation,
+// and activity zones are added with the features that need them — the schema
+// grows feature-by-feature rather than all at once, so migrations stay readable.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  runtime      = "nodejs"
+  moduleFormat = "esm"
+}
+
+// Prisma 7: the connection URL lives in prisma.config.ts (CLI/migrate) and is
+// passed to PrismaClient via a driver adapter at runtime — no `url` here.
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Identity zone ───────────────────────────────────
+
+enum Role {
+  TRAINEE
+  ANALYST
+  ADMIN
+}
+
+// Admins can block accounts (PRD §6.5). Blocked users can't log in or refresh a
+// session. Kept as an enum (not a boolean) so future states — e.g. SUSPENDED,
+// PENDING_DELETION — don't require reinterpreting the field's meaning.
+enum UserStatus {
+  ACTIVE
+  BLOCKED
+}
+
+model User {
+  id           String  @id @default(uuid())
+  email        String  @unique
+  // Null for OAuth-only accounts (Google sign-in never sets a password).
+  passwordHash String?
+  displayName  String
+  role         Role       @default(TRAINEE)
+  status       UserStatus @default(ACTIVE)
+  // Gate on full access until the emailed verification link is clicked (FR-4).
+  emailVerified Boolean @default(false)
+
+  // Profile picture: multer saves the uploaded file under uploads/avatars/ and we
+  // store just its filename here. It's served statically at /uploads/avatars/<file>.
+  avatarPath String?
+
+  refreshTokens           RefreshToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  passwordResetTokens     PasswordResetToken[]
+  oauthAccounts           OAuthAccount[]
+  conversations           Conversation[]
+  queryLogs               QueryLog[]
+  notifications           Notification[]
+  ingestionJobs           IngestionJob[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // createdAt: admin user-list ordering, "signups today" count, recent signups.
+  // status: the BLOCKED count + status filter. (role groupBy scans regardless.)
+  @@index([createdAt])
+  @@index([status])
+  @@map("users")
+}
+
+// ─── Conversation zone ───────────────────────────────
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+// A persisted chat thread owned by one user (FR-25). Pin/archive for organization
+// (FR-27); title auto-derived from the first message (FR-26).
+model Conversation {
+  id       String  @id @default(uuid())
+  userId   String
+  user     User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title    String
+  pinned   Boolean @default(false)
+  archived Boolean @default(false)
+
+  messages Message[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Matches the list query: filter by userId, order by pinned then updatedAt.
+  @@index([userId, pinned, updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           MessageRole
+  content        String
+  // Cited reports for assistant messages: [{ acn, reportId }]. JSON avoids a join
+  // table — we only ever read citations back alongside their message.
+  citations      Json?
+
+  createdAt DateTime @default(now())
+
+  // Ordered fetch of a thread's messages. (A pg_trgm GIN index on `content` for
+  // the conversation search is added by hand in the migration SQL — Prisma can't
+  // express a trigram GIN.)
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+// ─── Activity zone ───────────────────────────────────
+
+// Broadcast notifications are fanned out to one row per recipient (FR-32) so each
+// user has independent read state. Fine at demo scale; a broadcast+read-join
+// model is the move if the user base grows large.
+model Notification {
+  id     String    @id @default(uuid())
+  userId String
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title  String
+  body   String
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt])
+  @@map("notifications")
+}
+
+enum QueryKind {
+  SEARCH
+  ASK
+}
+
+enum AiOperation {
+  EMBEDDING
+  CHAT
+  REWRITE
+  CLASSIFICATION
+  SUMMARIZATION
+}
+
+// One row per real AI provider call, recording token usage for the admin
+// dashboard. Only written when a real key is set (the dev fallback makes no
+// calls). Fire-and-forget — never blocks or fails the operation it measures.
+model TokenUsage {
+  id               String      @id @default(uuid())
+  operation        AiOperation
+  model            String
+  promptTokens     Int         @default(0)
+  completionTokens Int         @default(0)
+  totalTokens      Int         @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([operation, createdAt])
+  @@map("token_usage")
+}
+
+// One row per completed query. Doubles as the audit log (FR-33) and the daily
+// quota counter (FR-11/12) — quota = count of a user's / IP's rows since midnight.
+// Privacy: userId for members, ipAddress ONLY for guests (PRD §8.2); a deleted
+// user's logs are kept but anonymized (userId → null).
+model QueryLog {
+  id             String    @id @default(uuid())
+  userId         String?
+  user           User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ipAddress      String?
+  kind           QueryKind
+  query          String
+  rewrittenQuery String?
+  retrievalCount Int       @default(0)
+  citedReportIds String[]  @default([])
+  latencyMs      Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([ipAddress, createdAt])
+  @@map("query_logs")
+}
+
+// Short-lived 6-digit codes emailed on registration (and resend). Stored as a
+// SHA-256 hash, never plaintext (PRD §8.1). `consumedAt` makes a code single-use;
+// `expiresAt` bounds its lifetime. Only the newest unconsumed code is valid — the
+// controller invalidates older ones when a new code is issued.
+model EmailVerificationToken {
+  id         String    @id @default(uuid())
+  codeHash   String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("email_verification_tokens")
+}
+
+enum OAuthProvider {
+  GOOGLE
+}
+
+// Links a user to an external identity (FR-3). Google-only for MVP; the enum
+// leaves room for more providers. A user can have both a password and OAuth.
+model OAuthAccount {
+  id                String        @id @default(uuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          OAuthProvider
+  providerAccountId String // the provider's stable user id (Google `sub`)
+  createdAt         DateTime      @default(now())
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("oauth_accounts")
+}
+
+// Same shape as email verification: short-lived 6-digit codes, stored hashed,
+// single-use (FR-5). On successful reset we also revoke all refresh tokens.
+model PasswordResetToken {
+  id         String    @id @default(uuid())
+  codeHash   String
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ─── Corpus zone ─────────────────────────────────────
+
+// Fixed LLM category set (FR-20). OTHER is the safe fallback for invalid output.
+enum Category {
+  HUMAN_FACTORS
+  AIRCRAFT_SYSTEMS
+  WEATHER
+  ATC_COMMUNICATION
+  RUNWAY_SAFETY
+  WILDLIFE
+  PROCEDURAL
+  OTHER
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// An admin-triggered corpus ingestion, processed by the background worker off the
+// request path (FR-14/29-31). The raw CSV is stored on the row so the worker
+// (a separate process) can read it without shared disk. Status is surfaced to
+// the admin UI; failures keep their error message.
+model IngestionJob {
+  id              String    @id @default(uuid())
+  uploaderId      String?
+  uploader        User?     @relation(fields: [uploaderId], references: [id], onDelete: SetNull)
+  filename        String
+  status          JobStatus @default(QUEUED)
+  totalRows       Int       @default(0)
+  reportsIngested Int       @default(0)
+  chunksCreated   Int       @default(0)
+  error           String?
+  sourceCsv       String
+  startedAt       DateTime?
+  completedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@map("ingestion_jobs")
+}
+
+// One ASRS incident report, stored verbatim for traceability (PRD §11.4). The
+// narrative is split into ReportChunks for embedding. category/severity are
+// LLM-assigned at ingestion (FR-20/21); summary is generated lazily on demand
+// and cached (FR-19) so it's never recomputed for unchanged text.
+model Report {
+  id         String    @id @default(uuid())
+  // ASRS Accession Number — the report's external id. Unique so re-ingesting the
+  // same CSV is idempotent (upsert by acn).
+  acn        String    @unique
+  narrative  String
+  synopsis   String?
+  reportDate DateTime?
+
+  category              Category?
+  severity              Severity?
+  severityJustification String?
+  summary               String?
+
+  chunks ReportChunk[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([severity])
+  // The analyst triage list orders by reportDate desc on every load.
+  @@index([reportDate])
+  @@map("reports")
+}
+
+// A ~200–500 token slice of a report's narrative plus its embedding vector.
+// NOTE: `embedding` is Unsupported() — Prisma has no native vector type, so it's
+// written and read via raw SQL (see ingestion/retrieval services), never through
+// the typed client. The HNSW index is added in the migration SQL by hand.
+model ReportChunk {
+  id         String                      @id @default(uuid())
+  reportId   String
+  report     Report                      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  chunkIndex Int
+  content    String
+  embedding  Unsupported("vector(1536)")
+
+  createdAt DateTime @default(now())
+
+  @@index([reportId])
+  @@map("report_chunks")
+}
+
+// Long-lived refresh tokens are opaque random strings; we store only their
+// SHA-256 hash (FR-7), never the raw value. `revokedAt` supports logout and
+// rotation-on-refresh; `expiresAt` bounds the session.
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ─── Metrics rollup zone ─────────────────────────────
+
+// Per-UTC-day rollup of the high-volume audit tables (query_logs, token_usage).
+// The nightly worker writes these so the admin dashboard's all-time query/token
+// totals survive retention pruning of the raw tables and never scan them for
+// history — the dashboard sums these tiny rows (one per day) plus today's live
+// counts. `day` is the UTC date as "YYYY-MM-DD".
+model DailyMetric {
+  day              String @id
+  queriesSearch    Int    @default(0)
+  queriesAsk       Int    @default(0)
+  tokensTotal      Int    @default(0)
+  tokensPrompt     Int    @default(0)
+  tokensCompletion Int    @default(0)
+  // Per-AiOperation token totals: { EMBEDDING: n, CHAT: n, REWRITE: n, ... }
+  tokensByOperation Json  @default("{}")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("daily_metrics")
+}
