@@ -52,7 +52,7 @@ export async function classifyReport(narrative: string): Promise<Classification>
     const response = await client.chat.completions.create({
       model: env.chatModel,
       temperature: 0,
-      max_tokens: CATEGORIZATION_MAX_TOKENS,
+      max_completion_tokens: CATEGORIZATION_MAX_TOKENS,
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },

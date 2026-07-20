@@ -24,7 +24,7 @@ export async function summarizeReport(narrative: string): Promise<string> {
     const response = await client.chat.completions.create({
       model: env.chatModel,
       temperature: 0.2,
-      max_tokens: SUMMARY_MAX_TOKENS,
+      max_completion_tokens: SUMMARY_MAX_TOKENS,
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: narrative },

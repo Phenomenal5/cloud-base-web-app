@@ -51,7 +51,7 @@ export async function* streamGroundedAnswer(
   const stream = await client.chat.completions.create({
     model: env.chatModel,
     temperature: 0.2, // low — we want faithful, not creative
-    max_tokens: ANSWER_MAX_TOKENS,
+    max_completion_tokens: ANSWER_MAX_TOKENS,
     stream: true,
     stream_options: { include_usage: true }, // usage arrives in a final chunk
     messages: [
@@ -92,7 +92,7 @@ export async function rewriteFollowUp(
   const response = await client.chat.completions.create({
     model: env.chatModel,
     temperature: 0,
-    max_tokens: 120,
+    max_completion_tokens: 120,
     messages: [
       {
         role: "system",
