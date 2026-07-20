@@ -9,7 +9,7 @@ import type {
   ReportFilters,
 } from "@/lib/types";
 import { axiosBaseQuery, type AxiosQueryArgs, type AxiosQueryError } from "./axiosBaseQuery";
-import { clearUser } from "./authSlice";
+import { clearUser, setUser } from "./authSlice";
 
 // ─── The app's single HTTP client (RTK Query over axios) ──
 //
@@ -73,6 +73,16 @@ export const api = createApi({
     login: builder.mutation<User, { email: string; password: string }>({
       query: (body) => ({ url: "/auth/login", method: "POST", body }),
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
+      // Set auth state the instant login resolves (don't wait on the /auth/me
+      // refetch), so routing straight to /chat renders the signed-in UI with no flicker.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(setUser(data));
+        } catch {
+          // Login failed — the page shows the error toast; nothing to set here.
+        }
+      },
       invalidatesTags: [{ type: "User", id: "ME" }],
     }),
     register: builder.mutation<
@@ -86,6 +96,15 @@ export const api = createApi({
     verifyEmail: builder.mutation<User, { email: string; code: string }>({
       query: (body) => ({ url: "/auth/verify-email", method: "POST", body }),
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
+      // Verifying the code also signs the user in — set auth state immediately.
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(setUser(data));
+        } catch {
+          // Verification failed — the page shows the error toast.
+        }
+      },
       invalidatesTags: [{ type: "User", id: "ME" }],
     }),
     resendVerification: builder.mutation<{ message: string }, { email: string }>({

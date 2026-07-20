@@ -25,7 +25,7 @@ function VerifyEmailForm() {
       try {
         await verifyEmail(values).unwrap(); // verified + signed in
         toast.success("Email verified");
-        router.push("/");
+        router.push("/chat");
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Invalid or expired code."));
       }

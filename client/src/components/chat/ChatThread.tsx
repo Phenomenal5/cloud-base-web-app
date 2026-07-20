@@ -78,7 +78,9 @@ export function ChatThread({ messages, userName, onExample }: ChatThreadProps) {
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto">
+      {/* min-h-0: without it a flex child won't shrink below its content, so this
+          would grow to the full message height and get clipped instead of scrolling. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
           {messages.map((message) =>
             message.role === "USER" ? (

@@ -24,7 +24,7 @@ export default function LoginPage() {
       try {
         await login(values).unwrap();
         toast.success("Signed in");
-        router.push("/");
+        router.push("/chat");
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Invalid email or password."));
       }

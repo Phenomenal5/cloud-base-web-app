@@ -12,7 +12,14 @@ export const makeStore = () =>
       auth: authReducer,
       [api.reducerPath]: api.reducer,
     },
-    middleware: (getDefault) => getDefault().concat(api.middleware),
+    middleware: (getDefault) =>
+      getDefault({
+        // Dev-only checks deep-walk the whole state on every action. Skip RTK
+        // Query's cache (immutable + serializable by construction) so a large
+        // cache doesn't slow dev; our own slices are still checked.
+        immutableCheck: { ignoredPaths: [api.reducerPath] },
+        serializableCheck: { ignoredPaths: [api.reducerPath] },
+      }).concat(api.middleware),
   });
 
 export type AppStore = ReturnType<typeof makeStore>;
