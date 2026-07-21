@@ -6,9 +6,8 @@ import { initSse, sendEvent } from "../utils/sse.js";
 import { semanticSearch } from "../services/retrievalService.js";
 import {
   streamGroundedAnswer,
-  rewriteFollowUp,
-  isSmallTalk,
-  smallTalkReply,
+  resolveQuery,
+  streamChatReply,
   type ConversationTurn,
 } from "../services/llmService.js";
 import {
@@ -57,24 +56,52 @@ export const ask = catchAsync(async (req, res) => {
     await addMessage(conversationId, "USER", query);
   }
 
-  // ── Small talk → one friendly line, no retrieval / citations / cost ──
-  // Greetings and acknowledgements aren't questions; answering them with a full
-  // grounded dump reads as "the chat won't end". Short-circuit before retrieval.
-  // Not logged as a query so chit-chat doesn't burn the daily quota.
-  if (isSmallTalk(query)) {
-    const reply = smallTalkReply(query);
+  // ── Understand the turn: real question (→ search) or small talk (→ chat) ──
+  // One LLM call decides, so greetings/thanks/acknowledgements end the exchange
+  // naturally instead of triggering a grounded answer. This resolves follow-up
+  // references too (FR-28) — it replaces the old rewrite step.
+  const resolved = await resolveQuery(history, query);
+
+  // ── Conversational turn → short LLM reply, no retrieval / citations / cost ──
+  // Not logged as a query, so chit-chat doesn't burn the daily quota.
+  if (resolved.mode === "chat") {
+    let clientGone = false;
+    req.on("close", () => {
+      clientGone = true;
+    });
+
     initSse(res);
     sendEvent(res, "meta", { conversationId, quota: res.locals.quota });
     sendEvent(res, "sources", { count: 0, sources: [] });
-    sendEvent(res, "token", { text: reply });
-    sendEvent(res, "done", { grounded: false, citations: [], conversationId });
-    if (conversationId) await addMessage(conversationId, "ASSISTANT", reply, []);
-    res.end();
+
+    let reply = "";
+    try {
+      for await (const chunk of streamChatReply(history, query)) {
+        if (clientGone) break;
+        reply += chunk;
+        sendEvent(res, "token", { text: chunk });
+      }
+      sendEvent(res, "done", { grounded: false, citations: [], conversationId });
+    } catch (error) {
+      logger.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
+      sendEvent(res, "error", {
+        message: "The answer service is temporarily unavailable. Please try again.",
+      });
+    } finally {
+      // Persist the assistant reply (even partial, on an SSE drop).
+      if (conversationId && reply.trim()) {
+        try {
+          await addMessage(conversationId, "ASSISTANT", reply, []);
+        } catch (persistError) {
+          logger.error(persistError instanceof Error ? persistError.message : String(persistError));
+        }
+      }
+      res.end();
+    }
     return;
   }
 
-  // ── Follow-up rewriting: resolve the question against prior turns (FR-28) ──
-  const searchQuery = history.length ? await rewriteFollowUp(history, query) : query;
+  const searchQuery = resolved.query;
 
   // ── Retrieve BEFORE opening the stream (errors stay clean JSON) ──
   const hits = await semanticSearch(searchQuery, env.retrievalTopN, env.retrievalMinSimilarity);
