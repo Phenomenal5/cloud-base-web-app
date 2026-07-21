@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Plane, FileText } from "lucide-react";
 import type { Source } from "@/lib/types";
 import { ReportDetailModal } from "@/components/reports/ReportDetailModal";
+import { Markdown } from "@/components/chat/Markdown";
 
 export interface DisplayMessage {
   id: string;
@@ -96,8 +97,8 @@ export function ChatThread({ messages, userName, onExample }: ChatThreadProps) {
                 </span>
                 <div className="min-w-0 flex-1">
                   {message.content ? (
-                    <div className="whitespace-pre-wrap text-sm leading-relaxed">
-                      {message.content}
+                    <div className="text-sm leading-relaxed">
+                      <Markdown>{message.content}</Markdown>
                       {message.streaming && <span className="ml-0.5 animate-pulse">▍</span>}
                     </div>
                   ) : message.streaming ? (

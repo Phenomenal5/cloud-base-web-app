@@ -7,6 +7,8 @@ import { semanticSearch } from "../services/retrievalService.js";
 import {
   streamGroundedAnswer,
   rewriteFollowUp,
+  isSmallTalk,
+  smallTalkReply,
   type ConversationTurn,
 } from "../services/llmService.js";
 import {
@@ -53,6 +55,22 @@ export const ask = catchAsync(async (req, res) => {
     }
     // Persist the user's message now so it survives an SSE drop.
     await addMessage(conversationId, "USER", query);
+  }
+
+  // ── Small talk → one friendly line, no retrieval / citations / cost ──
+  // Greetings and acknowledgements aren't questions; answering them with a full
+  // grounded dump reads as "the chat won't end". Short-circuit before retrieval.
+  // Not logged as a query so chit-chat doesn't burn the daily quota.
+  if (isSmallTalk(query)) {
+    const reply = smallTalkReply(query);
+    initSse(res);
+    sendEvent(res, "meta", { conversationId, quota: res.locals.quota });
+    sendEvent(res, "sources", { count: 0, sources: [] });
+    sendEvent(res, "token", { text: reply });
+    sendEvent(res, "done", { grounded: false, citations: [], conversationId });
+    if (conversationId) await addMessage(conversationId, "ASSISTANT", reply, []);
+    res.end();
+    return;
   }
 
   // ── Follow-up rewriting: resolve the question against prior turns (FR-28) ──

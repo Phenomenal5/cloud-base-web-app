@@ -136,13 +136,20 @@ export default function ChatPage() {
       onMeta: (meta) => {
         if (meta.quota) setQuota(meta.quota);
         // A brand-new conversation was created server-side (signed-in users). Adopt
-        // its id and put it in the URL — replace() so the auto-created thread doesn't
-        // add its own back-button entry. loadedIdRef is set first so the URL effect
-        // won't refetch over the messages we're actively streaming.
+        // its id and reflect it in the URL so refresh/bookmark keep this thread.
+        //
+        // NOTE: use the native History API, NOT router.replace(). In this Next
+        // version, router-navigating between /chat and /chat/<id> REMOUNTS this
+        // page mid-stream — which reset loadedIdRef + messages to empty, so the
+        // live answer vanished and the thread only reappeared after a manual
+        // reload (the reported bug). history.replaceState updates the URL without
+        // reloading/remounting, so the in-flight stream and state survive.
+        // loadedIdRef is set first so if the synced pathname re-runs the load
+        // effect, its guard skips refetching over the messages we're streaming.
         if (meta.conversationId && !activeConversationId) {
           loadedIdRef.current = meta.conversationId;
           setActiveConversationId(meta.conversationId);
-          router.replace(`/chat/${meta.conversationId}`);
+          window.history.replaceState(null, "", `/chat/${meta.conversationId}`);
           dispatch(api.util.invalidateTags([{ type: "Conversation", id: "LIST" }]));
         }
       },

@@ -7,14 +7,21 @@ import { Plane } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
-// Shared shell for the auth pages. Signed-in users are bounced home — auth pages
-// are for guests/returning users only.
+// Shared shell for the auth pages. Signed-in users are bounced into the app —
+// auth pages are for guests/returning users only.
+//
+// NOTE: this status-driven redirect is the RELIABLE way in. The auth pages also
+// push to /chat imperatively for snappiness, but that push can race the login
+// mutation's setUser dispatch and get dropped ("sometimes never routes"). This
+// effect reacts to the COMMITTED auth status, so it always lands the user in the
+// app. Target must match the pages' push target (/chat) so they never fight over
+// two different destinations.
 export default function AuthLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
   const status = useAppSelector((state) => state.auth.status);
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/");
+    if (status === "authenticated") router.replace("/chat");
   }, [status, router]);
 
   return (

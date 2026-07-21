@@ -6,13 +6,14 @@ import { Loader2 } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 
 // Landing spot after Google OAuth: the backend already set the session cookies,
-// so once AuthProvider's /auth/me resolves we bounce home (or to login on failure).
+// so once AuthProvider's /auth/me resolves we go to the chat (or to login on
+// failure). Target matches the other auth pages (/chat) so redirects never fight.
 export default function OAuthCallbackPage() {
   const router = useRouter();
   const status = useAppSelector((state) => state.auth.status);
 
   useEffect(() => {
-    if (status === "authenticated") router.replace("/");
+    if (status === "authenticated") router.replace("/chat");
     else if (status === "guest") router.replace("/login");
   }, [status, router]);
 
