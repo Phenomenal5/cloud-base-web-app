@@ -135,23 +135,6 @@ export default function ChatPage() {
     cancelStreamRef.current = streamAnswer(text, activeConversationId, {
       onMeta: (meta) => {
         if (meta.quota) setQuota(meta.quota);
-        // A brand-new conversation was created server-side (signed-in users). Adopt
-        // its id and reflect it in the URL so refresh/bookmark keep this thread.
-        //
-        // NOTE: use the native History API, NOT router.replace(). In this Next
-        // version, router-navigating between /chat and /chat/<id> REMOUNTS this
-        // page mid-stream — which reset loadedIdRef + messages to empty, so the
-        // live answer vanished and the thread only reappeared after a manual
-        // reload (the reported bug). history.replaceState updates the URL without
-        // reloading/remounting, so the in-flight stream and state survive.
-        // loadedIdRef is set first so if the synced pathname re-runs the load
-        // effect, its guard skips refetching over the messages we're streaming.
-        if (meta.conversationId && !activeConversationId) {
-          loadedIdRef.current = meta.conversationId;
-          setActiveConversationId(meta.conversationId);
-          window.history.replaceState(null, "", `/chat/${meta.conversationId}`);
-          dispatch(api.util.invalidateTags([{ type: "Conversation", id: "LIST" }]));
-        }
       },
       onSources: (sources) => updateMessage(assistantMessageId, { sources }),
       onToken: (chunk) =>
@@ -162,9 +145,27 @@ export default function ChatPage() {
               : message,
           ),
         ),
-      onDone: () => {
+      onDone: (done) => {
         updateMessage(assistantMessageId, { streaming: false });
         setIsStreaming(false);
+        // A brand-new conversation was created server-side (signed-in users). Adopt
+        // its id and reflect it in the URL so refresh/bookmark keep this thread.
+        //
+        // Do this AFTER streaming, never mid-stream. Changing the URL while tokens
+        // are arriving — even via the History API — makes Next start a router
+        // transition, and React defers the low-priority streaming updates caught in
+        // it, so nothing paints until a click forces a flush (the "I have to click
+        // the page for the response to come in" bug). By onDone there are no more
+        // updates to stall. loadedIdRef is set first so the URL effect skips
+        // reloading a thread we already have; replaceState is deferred one tick so
+        // this final render paints before the router re-syncs the pathname.
+        if (done.conversationId && !activeConversationId) {
+          const newId = done.conversationId;
+          loadedIdRef.current = newId;
+          setActiveConversationId(newId);
+          dispatch(api.util.invalidateTags([{ type: "Conversation", id: "LIST" }]));
+          setTimeout(() => window.history.replaceState(null, "", `/chat/${newId}`), 0);
+        }
       },
       onError: (message) => {
         updateMessage(assistantMessageId, { streaming: false, error: message });
