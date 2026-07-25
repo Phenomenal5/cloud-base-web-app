@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AeroLens — Aviation safety, in plain language",
+  title: "Nasight — Aviation safety, in plain language",
   description:
     "Ask natural-language questions across NASA ASRS incident reports and get grounded, source-cited answers.",
 };

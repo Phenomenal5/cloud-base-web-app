@@ -60,7 +60,7 @@ async function findOrCreateGoogleUser(profile: Profile) {
   if (!user) {
     user = await prisma.user.create({
       data: {
-        email: email ?? `google_${providerAccountId}@aerolens.local`,
+        email: email ?? `google_${providerAccountId}@nasight.local`,
         displayName,
         emailVerified: true,
       },

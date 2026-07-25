@@ -27,7 +27,7 @@ if (!env.isProduction) {
   router.use(
     "/docs",
     swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec, { customSiteTitle: "AeroLens API" }),
+    swaggerUi.setup(swaggerSpec, { customSiteTitle: "Nasight API" }),
   );
   router.get("/docs.json", (_req, res) => res.json(swaggerSpec));
 }
@@ -51,7 +51,7 @@ router.get(
     await prisma.$queryRaw`SELECT 1`;
     res.status(200).json({
       status: "ok",
-      service: "aerolens-api",
+      service: "nasight-api",
       db: "up",
       uptime: process.uptime(),
     });

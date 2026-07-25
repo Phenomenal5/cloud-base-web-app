@@ -1,7 +1,7 @@
 {
   "name": "server",
   "version": "1.0.0",
-  "description": "AeroLens API — Express + Prisma backend for grounded RAG over NASA ASRS reports",
+  "description": "Nasight API — Express + Prisma backend for grounded RAG over NASA ASRS reports",
   "type": "module",
   "main": "dist/server.js",
   "scripts": {

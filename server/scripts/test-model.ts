@@ -75,7 +75,7 @@ async function main(): Promise<void> {
     const startedAt = Date.now();
     const embedding = await client.embeddings.create({
       model: embeddingModel,
-      input: "AeroLens embedding smoke test.",
+      input: "Nasight embedding smoke test.",
     });
     const dimensions = embedding.data[0]?.embedding.length ?? 0;
     const dimensionNote = dimensions === 1536 ? "" : "  ⚠ expected 1536 for the schema's vector column";

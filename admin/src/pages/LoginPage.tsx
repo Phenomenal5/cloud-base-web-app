@@ -58,7 +58,7 @@ export function LoginPage() {
           <span className='flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand'>
             <Plane className='h-4 w-4' />
           </span>
-          AeroLens Admin
+          Nasight Admin
         </div>
         <div className='rounded-2xl border border-border bg-surface p-6 shadow-sm'>
           <h1 className='text-xl font-semibold'>Sign in</h1>

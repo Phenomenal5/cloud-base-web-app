@@ -12,7 +12,7 @@ export default function Home() {
         <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
           <Plane className="h-7 w-7" />
         </div>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">AeroLens</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Nasight</h1>
         <p className="mx-auto mt-3 max-w-md text-balance text-slate-600 dark:text-slate-400">
           Ask about aviation safety in plain English. Get answers grounded in real NASA ASRS
           incident reports — with sources you can check.

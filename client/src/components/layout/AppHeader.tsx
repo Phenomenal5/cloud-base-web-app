@@ -47,7 +47,7 @@ export function AppHeader({ onMenuClick }: AppHeaderProps = {}) {
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand/10 text-brand">
             <Plane className="h-4 w-4" />
           </span>
-          AeroLens
+          Nasight
         </Link>
       </div>
 

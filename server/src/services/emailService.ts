@@ -71,11 +71,11 @@ async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<voi
 // ─── Verification code email ──────────────────────────
 export async function sendVerificationCode(to: string, code: string): Promise<void> {
   const minutes = env.verificationCodeTtlMinutes;
-  const subject = "Your AeroLens verification code";
-  const text = `Your AeroLens verification code is ${code}. It expires in ${minutes} minutes. If you didn't request this, you can ignore this email.`;
+  const subject = "Your Nasight verification code";
+  const text = `Your Nasight verification code is ${code}. It expires in ${minutes} minutes. If you didn't request this, you can ignore this email.`;
   const html = codeEmailHtml(
     "Verify your email",
-    "Use this code to finish setting up your AeroLens account:",
+    "Use this code to finish setting up your Nasight account:",
     code,
     minutes,
   );
@@ -86,8 +86,8 @@ export async function sendVerificationCode(to: string, code: string): Promise<vo
 // ─── Password reset code email ────────────────────────
 export async function sendPasswordResetCode(to: string, code: string): Promise<void> {
   const minutes = env.passwordResetTtlMinutes;
-  const subject = "Your AeroLens password reset code";
-  const text = `Your AeroLens password reset code is ${code}. It expires in ${minutes} minutes. If you didn't request a reset, you can safely ignore this email.`;
+  const subject = "Your Nasight password reset code";
+  const text = `Your Nasight password reset code is ${code}. It expires in ${minutes} minutes. If you didn't request a reset, you can safely ignore this email.`;
   const html = codeEmailHtml(
     "Reset your password",
     "Use this code to set a new password:",

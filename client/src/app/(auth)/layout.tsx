@@ -37,7 +37,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand/10 text-brand">
             <Plane className="h-4 w-4" />
           </span>
-          AeroLens
+          Nasight
         </Link>
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
           {children}

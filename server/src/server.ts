@@ -20,7 +20,7 @@ async function start() {
   }
 
   const server = app.listen(env.port, () => {
-    logger.info(`✔ AeroLens API listening on http://localhost:${env.port} [${env.nodeEnv}]`);
+    logger.info(`✔ Nasight API listening on http://localhost:${env.port} [${env.nodeEnv}]`);
   });
 
   // Graceful shutdown: stop accepting connections, then close the DB pool.

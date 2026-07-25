@@ -1,4 +1,4 @@
-// AeroLens — Prisma schema
+// Nasight — Prisma schema
 // Docs: https://pris.ly/d/prisma-schema
 //
 // We start with the Identity zone (just `User` for now). Corpus, conversation,

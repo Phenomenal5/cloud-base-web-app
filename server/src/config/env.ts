@@ -66,8 +66,8 @@ export const env = {
   smtpPort: Number(opt("BREVO_SMTP_PORT", "587")),
   smtpUser: opt("BREVO_SMTP_USER", ""),
   smtpPass: opt("BREVO_SMTP_KEY", ""),
-  emailFrom: opt("EMAIL_FROM", "no-reply@aerolens.app"),
-  emailFromName: opt("EMAIL_FROM_NAME", "AeroLens"),
+  emailFrom: opt("EMAIL_FROM", "no-reply@nasight.app"),
+  emailFromName: opt("EMAIL_FROM_NAME", "Nasight"),
   verificationCodeTtlMinutes: Number(opt("VERIFICATION_CODE_TTL_MINUTES", "15")),
   passwordResetTtlMinutes: Number(opt("PASSWORD_RESET_TTL_MINUTES", "15")),
 

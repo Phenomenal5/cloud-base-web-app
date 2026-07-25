@@ -11,7 +11,7 @@ const options: swaggerJsdoc.Options = {
   definition: {
     openapi: "3.0.3",
     info: {
-      title: "AeroLens API",
+      title: "Nasight API",
       version: "1.0.0",
       description:
         "Grounded, retrieval-augmented API over NASA ASRS aviation safety reports.\n\n" +

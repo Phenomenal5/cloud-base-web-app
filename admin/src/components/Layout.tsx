@@ -31,7 +31,7 @@ export function Layout() {
           <span className='flex h-7 w-7 items-center justify-center rounded-lg bg-brand/10 text-brand'>
             <Plane className='h-4 w-4' />
           </span>
-          AeroLens Admin
+          Nasight Admin
         </div>
 
         <nav className='flex flex-1 flex-col gap-0.5 px-2'>
