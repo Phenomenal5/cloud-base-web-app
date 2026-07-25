@@ -95,6 +95,24 @@ export interface ReportFilters {
   page?: number;
 }
 
+// NOTE: named AppNotification, not Notification — `Notification` is a DOM global
+// (the Web Notifications API), so a file that forgot the import would silently
+// type-check against the browser one instead of failing.
+export interface AppNotification {
+  id: string;
+  title: string;
+  body: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+// GET /notifications returns the feed and the unread count together, so the bell
+// badge and the list never disagree.
+export interface NotificationFeed {
+  notifications: AppNotification[];
+  unread: number;
+}
+
 export interface Tokens {
   accessToken: string;
   refreshToken: string;

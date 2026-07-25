@@ -7,6 +7,7 @@ import type {
   Report,
   ReportPage,
   ReportFilters,
+  NotificationFeed,
 } from "@/lib/types";
 import { axiosBaseQuery, type AxiosQueryArgs, type AxiosQueryError } from "./axiosBaseQuery";
 import { clearUser, setUser } from "./authSlice";
@@ -198,6 +199,41 @@ export const api = createApi({
       providesTags: [{ type: "Report", id: "LIST" }],
     }),
 
+    // ── Notifications ──
+    // The feed is read-only to the user; rows are created by an admin broadcast
+    // (POST /admin/notifications), so the only writes here are read-receipts.
+    listNotifications: builder.query<NotificationFeed, void>({
+      query: () => "/notifications",
+      transformResponse: (response: ApiEnvelope<NotificationFeed>) => response.data,
+      providesTags: (feed) =>
+        feed
+          ? [
+              ...feed.notifications.map((notification) => ({
+                type: "Notification" as const,
+                id: notification.id,
+              })),
+              { type: "Notification" as const, id: "LIST" },
+            ]
+          : [{ type: "Notification" as const, id: "LIST" }],
+    }),
+    markNotificationRead: builder.mutation<unknown, string>({
+      query: (notificationId) => ({
+        url: `/notifications/${notificationId}/read`,
+        method: "PATCH",
+      }),
+      // LIST too: the unread count rides along with the feed, so the badge is
+      // stale until the list itself refetches.
+      invalidatesTags: (_result, _error, notificationId) => [
+        { type: "Notification", id: notificationId },
+        { type: "Notification", id: "LIST" },
+      ],
+    }),
+    markAllNotificationsRead: builder.mutation<{ updated: number }, void>({
+      query: () => ({ url: "/notifications/read-all", method: "PATCH" }),
+      transformResponse: (response: ApiEnvelope<{ updated: number }>) => response.data,
+      invalidatesTags: [{ type: "Notification", id: "LIST" }],
+    }),
+
     // ── Profile ──
     updateProfile: builder.mutation<User, { displayName: string }>({
       query: (body) => ({ url: "/users/me", method: "PATCH", body }),
@@ -234,6 +270,9 @@ export const {
   useDeleteConversationMutation,
   useGetReportQuery,
   useListReportsQuery,
+  useListNotificationsQuery,
+  useMarkNotificationReadMutation,
+  useMarkAllNotificationsReadMutation,
   useUpdateProfileMutation,
   useUploadAvatarMutation,
   useDeleteAvatarMutation,

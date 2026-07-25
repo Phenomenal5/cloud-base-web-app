@@ -8,6 +8,7 @@ import { useLogoutMutation } from "@/store/api";
 import { useAppSelector } from "@/store/hooks";
 import { Avatar } from "@/components/ui/Avatar";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface AppHeaderProps {
   // Chat page passes this to open the conversation drawer on mobile; other
@@ -53,52 +54,56 @@ export function AppHeader({ onMenuClick }: AppHeaderProps = {}) {
       <div className="flex items-center gap-2">
         <ThemeToggle />
         {status === "authenticated" && user ? (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((open) => !open)}
-              className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 text-sm transition hover:bg-surface-2"
-            >
-              <Avatar name={user.displayName} src={user.avatarUrl} size={28} />
-              <span className="hidden sm:inline">{user.displayName}</span>
-              <ChevronDown className="h-4 w-4 text-muted" />
-            </button>
+          <>
+            {/* Inside the auth branch so the feed is never fetched for a guest. */}
+            <NotificationBell />
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setMenuOpen((open) => !open)}
+                className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 text-sm transition hover:bg-surface-2"
+              >
+                <Avatar name={user.displayName} src={user.avatarUrl} size={28} />
+                <span className="hidden sm:inline">{user.displayName}</span>
+                <ChevronDown className="h-4 w-4 text-muted" />
+              </button>
 
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-border bg-surface p-1 shadow-lg">
-                  <div className="px-3 py-2">
-                    <p className="truncate text-sm font-medium">{user.displayName}</p>
-                    <p className="truncate text-xs text-muted">{user.email}</p>
-                  </div>
-                  <Link
-                    href="/profile"
-                    onClick={() => setMenuOpen(false)}
-                    className="block rounded-md px-3 py-2 text-sm transition hover:bg-surface-2"
-                  >
-                    Profile
-                  </Link>
-                  {(user.role === "ANALYST" || user.role === "ADMIN") && (
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-border bg-surface p-1 shadow-lg">
+                    <div className="px-3 py-2">
+                      <p className="truncate text-sm font-medium">{user.displayName}</p>
+                      <p className="truncate text-xs text-muted">{user.email}</p>
+                    </div>
                     <Link
-                      href="/reports"
+                      href="/profile"
                       onClick={() => setMenuOpen(false)}
                       className="block rounded-md px-3 py-2 text-sm transition hover:bg-surface-2"
                     >
-                      Report triage
+                      Profile
                     </Link>
-                  )}
-                  <button
-                    type="button"
-                    onClick={handleSignOut}
-                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-rose-600 transition hover:bg-surface-2 dark:text-rose-400"
-                  >
-                    <LogOut className="h-4 w-4" /> Sign out
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+                    {(user.role === "ANALYST" || user.role === "ADMIN") && (
+                      <Link
+                        href="/reports"
+                        onClick={() => setMenuOpen(false)}
+                        className="block rounded-md px-3 py-2 text-sm transition hover:bg-surface-2"
+                      >
+                        Report triage
+                      </Link>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-rose-600 transition hover:bg-surface-2 dark:text-rose-400"
+                    >
+                      <LogOut className="h-4 w-4" /> Sign out
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </>
         ) : (
           <Link
             href="/login"
