@@ -359,6 +359,6 @@ ISC. Built as an engineering checkpoint for semantic aviation safety analysis ov
   title = {Nasight: Grounded Retrieval-Augmented Generation for NASA Aviation Safety Reports},
   year = {2026},
   publisher = {GitHub},
-  howpublished = {\url{https://github.com/<your-username>/nasight}}
+  howpublished = {\url{https://github.com/Phenomenal5/cloud-base-web-app.git}}
 }
 ```
