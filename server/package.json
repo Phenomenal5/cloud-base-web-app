@@ -25,7 +25,18 @@
     "format:check": "prettier --check .",
     "check": "npm run typecheck && npm run lint && npm run format:check"
   },
-  "keywords": [],
+  "keywords": [
+    "nasa",
+    "asrs",
+    "rag",
+    "api",
+    "express",
+    "prisma",
+    "typescript",
+    "vitest",
+    "eslint",
+    "prettier"
+  ],
   "author": "Abdullahi",
   "license": "ISC",
   "dependencies": {
@@ -43,7 +54,6 @@
     "jsonwebtoken": "^9.0.3",
     "morgan": "^1.11.0",
     "multer": "^2.2.0",
-    "nodemailer": "^9.0.3",
     "openai": "^6.48.0",
     "papaparse": "^5.5.4",
     "passport": "^0.7.0",
@@ -66,7 +76,6 @@
     "@types/morgan": "^1.9.10",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.1.1",
-    "@types/nodemailer": "^8.0.1",
     "@types/papaparse": "^5.5.2",
     "@types/pg": "^8.20.0",
     "@types/supertest": "^7.2.1",

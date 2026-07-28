@@ -1,35 +1,28 @@
-import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import AppError from "../utils/AppError.js";
 
-// ─── Email service (Brevo SMTP relay via nodemailer) ──
+// ─── Email service (Brevo transactional email API) ────
 //
-// Sends through Brevo's SMTP relay (smtp-relay.brevo.com). nodemailer is just the
-// SMTP client that speaks the protocol to Brevo — it's not a separate provider.
-// When SMTP_USER/SMTP_PASS aren't set (local dev), it logs the message instead so
-// the verification flow is fully exercisable without a provider account.
+// Sends over Brevo's HTTPS API rather than their SMTP relay.
 //
-// NOTE: BREVO_SMTP_USER is the Brevo SMTP login (…@smtp-brevo.com) and
-// BREVO_SMTP_KEY is a Brevo "SMTP key" (dashboard → SMTP & API → SMTP), NOT your
-// account password. EMAIL_FROM must be a sender verified in your Brevo account.
+// NOTE: this used to go through nodemailer → smtp-relay.brevo.com:587. Most PaaS
+// hosts (Railway, Render, Fly, Heroku) block outbound SMTP ports to fight spam,
+// so those sends just hang until they time out. HTTPS on 443 is never blocked,
+// which is why the API is the right transport for a deployed app.
+//
+// NOTE: BREVO_API_KEY is the v3 API key (dashboard → SMTP & API → API Keys), the
+// one starting `xkeysib-`. It is NOT the "SMTP key" the old transport used —
+// they're issued separately and are not interchangeable.
+//
+// EMAIL_FROM must be a sender you've verified in Brevo. An unverified sender is
+// the most common cause of a 400 back from this endpoint.
 
-const isEmailConfigured = Boolean(env.smtpUser && env.smtpPass);
+const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
+// Don't let a slow provider hold a registration request open indefinitely.
+const REQUEST_TIMEOUT_MS = 10_000;
 
-// One pooled transporter, created lazily on first send.
-let transporter: Transporter | null = null;
-function getTransporter(): Transporter {
-  if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: env.smtpHost,
-      port: env.smtpPort,
-      // Port 465 uses implicit TLS; 587 (Brevo's default) upgrades via STARTTLS.
-      secure: env.smtpPort === 465,
-      auth: { user: env.smtpUser, pass: env.smtpPass },
-    });
-  }
-  return transporter;
-}
+const isEmailConfigured = Boolean(env.brevoApiKey);
 
 interface EmailMessage {
   to: string;
@@ -41,10 +34,10 @@ interface EmailMessage {
 async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<void> {
   if (!isEmailConfigured) {
     // NEVER log a code in production — the message body contains verification /
-    // reset codes. In prod, unset SMTP creds are a hard misconfig, not a fallback.
-    // (validateEnv makes BREVO_SMTP_USER/BREVO_SMTP_KEY prod-required — defense-in-depth.)
+    // reset codes. In prod, a missing key is a hard misconfig, not a fallback.
+    // (validateEnv makes BREVO_API_KEY prod-required — defense in depth.)
     if (env.isProduction) {
-      logger.error("SMTP credentials are not set — refusing to send email.");
+      logger.error("BREVO_API_KEY is not set — refusing to send email.");
       throw new AppError("Email service is not configured.", 500);
     }
     // Dev fallback: surface the content (incl. any code) in the logs so the
@@ -53,17 +46,36 @@ async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<voi
     return;
   }
 
+  let response: Response;
   try {
-    await getTransporter().sendMail({
-      from: { name: env.emailFromName, address: env.emailFrom },
-      to,
-      subject,
-      text,
-      html,
+    response = await fetch(BREVO_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "api-key": env.brevoApiKey,
+        "content-type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify({
+        sender: { name: env.emailFromName, email: env.emailFrom },
+        to: [{ email: to }],
+        subject,
+        htmlContent: html,
+        textContent: text,
+      }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
-    logger.error(`SMTP send failed: ${error instanceof Error ? error.message : String(error)}`);
-    // 502: our upstream (the email provider) failed, not the client.
+    // Network failure or the timeout above firing.
+    logger.error(`Brevo request failed: ${error instanceof Error ? error.message : String(error)}`);
+    throw new AppError("Failed to send email. Please try again shortly.", 502);
+  }
+
+  if (!response.ok) {
+    // Brevo returns { code, message } on failure — log it verbatim. It names the
+    // actual problem ("sender not valid", "unauthorized"), which is the whole
+    // difference between a five-minute fix and an afternoon of guessing.
+    const detail = await response.text().catch(() => "<unreadable body>");
+    logger.error(`Brevo rejected the send (HTTP ${response.status}): ${detail}`);
     throw new AppError("Failed to send email. Please try again shortly.", 502);
   }
 }

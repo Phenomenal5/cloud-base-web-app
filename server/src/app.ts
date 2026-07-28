@@ -7,7 +7,7 @@ import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import { env } from "./config/env.js";
 import passport, { configurePassport } from "./config/passport.js";
-import { morganStream } from "./config/logger.js";
+import { logger, morganStream } from "./config/logger.js";
 import { generalLimiter } from "./middlewares/rateLimiter.js";
 import { notFound, globalErrorHandler } from "./middlewares/errorHandler.js";
 import apiRoutes from "./routes/index.js";
@@ -31,6 +31,15 @@ app.use(
       if (!origin || env.corsOrigins.includes(origin)) return callback(null, true);
       // Don't set CORS headers for disallowed origins (browser blocks) instead
       // of throwing — avoids noisy 500s from bots hitting the API directly.
+      //
+      // NOTE: log it. A rejected origin fails in the BROWSER with "No
+      // 'Access-Control-Allow-Origin' header is present" and leaves nothing in
+      // the server logs, which makes a misconfigured CORS_ORIGINS on a new
+      // deployment (a fresh Vercel URL, say) maddening to diagnose. Now the
+      // exact origin to add shows up here.
+      logger.warn(
+        `CORS: blocked request from origin "${origin}" — add it to CORS_ORIGINS (currently: ${env.corsOrigins.join(", ") || "none"})`,
+      );
       return callback(null, false);
     },
     credentials: true, // auth will use an httpOnly cookie

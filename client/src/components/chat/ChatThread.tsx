@@ -3,8 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Plane, FileText } from "lucide-react";
 import type { Source } from "@/lib/types";
+import type { StreamError } from "@/lib/chatStream";
 import { ReportDetailModal } from "@/components/reports/ReportDetailModal";
 import { Markdown } from "@/components/chat/Markdown";
+import { QuotaNotice } from "@/components/chat/QuotaNotice";
 
 export interface DisplayMessage {
   id: string;
@@ -12,7 +14,7 @@ export interface DisplayMessage {
   content: string;
   sources?: Source[];
   streaming?: boolean;
-  error?: string;
+  error?: StreamError;
 }
 
 const EXAMPLE_PROMPTS = [
@@ -105,9 +107,18 @@ export function ChatThread({ messages, userName, onExample }: ChatThreadProps) {
                     <p className="text-sm text-muted">Searching the reports…</p>
                   ) : null}
 
-                  {message.error && (
-                    <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">{message.error}</p>
-                  )}
+                  {/* Running out of questions isn't a failure — it gets its own
+                      explanatory panel with the reset time, not a red line. */}
+                  {message.error &&
+                    (message.error.code === "QUOTA_EXCEEDED" ? (
+                      <div className="mt-2">
+                        <QuotaNotice error={message.error} />
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-rose-600 dark:text-rose-400">
+                        {message.error.message}
+                      </p>
+                    ))}
 
                   {message.sources && message.sources.length > 0 && (
                     <div className="mt-3">

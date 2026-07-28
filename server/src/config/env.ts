@@ -56,16 +56,15 @@ export const env = {
   jwtAccessTtlSeconds: Number(opt("JWT_ACCESS_TTL_SECONDS", "900")), // 15 minutes
   refreshTtlDays: Number(opt("REFRESH_TTL_DAYS", "30")),
 
-  // ── Email (Brevo SMTP relay) ────────────────────────
-  // Sent via SMTP (nodemailer) through Brevo's relay. Optional at boot: without
-  // BREVO_SMTP_USER/BREVO_SMTP_KEY, emailService logs codes to the console so the
-  // flow is testable in dev. BREVO_SMTP_USER is the SMTP login (…@smtp-brevo.com);
-  // BREVO_SMTP_KEY is the Brevo "SMTP key" (dashboard → SMTP & API → SMTP) — NOT
-  // your login password and NOT the HTTP API key (xkeysib-…).
-  smtpHost: opt("BREVO_SMTP_HOST", "smtp-relay.brevo.com"),
-  smtpPort: Number(opt("BREVO_SMTP_PORT", "587")),
-  smtpUser: opt("BREVO_SMTP_USER", ""),
-  smtpPass: opt("BREVO_SMTP_KEY", ""),
+  // ── Email (Brevo transactional API) ─────────────────
+  // Sent over Brevo's HTTPS API. Optional at boot: without BREVO_API_KEY,
+  // emailService logs codes to the console so the flow is testable in dev.
+  //
+  // NOTE: this is the v3 API key (dashboard → SMTP & API → API Keys), the one
+  // starting `xkeysib-`. The old SMTP transport used a separate "SMTP key" —
+  // different credential, not interchangeable. We moved off SMTP because PaaS
+  // hosts (Railway, Render, Fly) block outbound SMTP ports.
+  brevoApiKey: opt("BREVO_API_KEY", ""),
   emailFrom: opt("EMAIL_FROM", "no-reply@nasight.app"),
   emailFromName: opt("EMAIL_FROM_NAME", "Nasight"),
   verificationCodeTtlMinutes: Number(opt("VERIFICATION_CODE_TTL_MINUTES", "15")),
@@ -146,13 +145,7 @@ if (env.jwtAccessSecret.length < 32) {
 if (env.isProduction) {
   // Checked against the RAW env (not env.* which carries localhost defaults for
   // CORS/PUBLIC_BASE_URL), so the dev defaults can't satisfy a prod boot.
-  const PROD_REQUIRED = [
-    "OPENAI_API_KEY",
-    "BREVO_SMTP_USER",
-    "BREVO_SMTP_KEY",
-    "CORS_ORIGINS",
-    "PUBLIC_BASE_URL",
-  ];
+  const PROD_REQUIRED = ["OPENAI_API_KEY", "BREVO_API_KEY", "CORS_ORIGINS", "PUBLIC_BASE_URL"];
   const missing = PROD_REQUIRED.filter((name) => !process.env[name]?.trim());
   if (missing.length > 0) {
     failBoot(`Missing required production environment variables: ${missing.join(", ")}`);

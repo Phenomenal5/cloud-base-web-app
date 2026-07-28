@@ -26,6 +26,15 @@ function startOfUtcDay(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
+// When the current quota window rolls over — i.e. the next midnight UTC. Sent to
+// the client so an exhausted user is told when they get access back, instead of
+// a bare "limit reached". Returned as a Date; serialize with toISOString() so the
+// browser can render it in the viewer's own timezone.
+export function quotaResetsAt(): Date {
+  const startOfToday = startOfUtcDay();
+  return new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+}
+
 // Queries used today by a member (userId) or a guest (ipAddress).
 export function usedToday(identity: { userId?: string; ip?: string }): Promise<number> {
   return prisma.queryLog.count({

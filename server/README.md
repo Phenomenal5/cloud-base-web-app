@@ -49,12 +49,12 @@ Everything else has a sensible default. A few worth knowing about:
 |---|---|---|
 | `PORT` | `4000` | **Set this to `8000`** — both frontends default to `http://localhost:8000/api`. (`.env.example` still says 4000; that's a leftover.) |
 | `OPENAI_API_KEY` | *(empty)* | Without it, embeddings fall back to a deterministic dev stub. The pipeline runs end to end, but search results aren't actually semantic. |
-| `BREVO_SMTP_USER` / `BREVO_SMTP_KEY` | *(empty)* | Without them, verification and reset codes are printed to the console instead of emailed. Genuinely convenient in dev. |
+| `BREVO_API_KEY` | *(empty)* | Without it, verification and reset codes are printed to the console instead of emailed. Genuinely convenient in dev. |
 | `QUEUE_DATABASE_URL` | falls back to `DATABASE_URL` | See the pg-boss note below — this one bites. |
 | `CORS_ORIGINS` | `localhost:3000,localhost:3001` | Explicit allowlist, never a wildcard. Add your deployed frontends here. |
 | `RETRIEVAL_MIN_SIMILARITY` | `0` | At 0 the kNN search always returns *something*. Raise it to ~0.3 once you have real embeddings so off-topic questions correctly hit the "no relevant reports" path. |
 
-In production, the boot check gets stricter: `OPENAI_API_KEY`, `BREVO_SMTP_USER`, `BREVO_SMTP_KEY`, `CORS_ORIGINS`, and `PUBLIC_BASE_URL` all become mandatory. That's deliberate — it stops a misconfigured deploy from silently serving stub AI answers and logging password reset codes.
+In production, the boot check gets stricter: `OPENAI_API_KEY`, `BREVO_API_KEY`, `CORS_ORIGINS`, and `PUBLIC_BASE_URL` all become mandatory. That's deliberate — it stops a misconfigured deploy from silently serving stub AI answers and logging password reset codes.
 
 See `.env.example` for the fully commented list.
 
@@ -154,3 +154,5 @@ Everything under `/api/admin` sits behind a single `protect → authorize("ADMIN
 **The embedding model and the schema have to agree.** `text-embedding-3-small` produces 1536 dimensions, which is what the `vector(1536)` column expects. Switch models and you need a migration — and to re-embed everything.
 
 **`npm run test:model`** is worth running before you blame the code. It tells you whether the key is valid, funded, and enabled for both models you need.
+
+**Email goes over Brevo's HTTPS API, not SMTP.** That's deliberate: Railway, Render and Fly all block outbound SMTP ports, so relay sends hang until they time out. If mail fails, check the server log — Brevo's rejection body is logged verbatim, and it usually says exactly what's wrong. By far the most common answer is that `EMAIL_FROM` isn't a verified sender on your Brevo account.

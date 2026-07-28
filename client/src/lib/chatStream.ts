@@ -10,10 +10,27 @@ import type { Source, Citation } from "./types";
 // withCredentials sends the httpOnly auth cookie so signed-in users get a
 // persisted conversation; guests stream statelessly.
 
+export interface QuotaState {
+  limit: number | null;
+  remaining: number | null;
+  resetsAt: string | null;
+}
+
 export interface StreamMeta {
   conversationId?: string;
   rewrittenQuery?: string;
-  quota?: { limit: number | null; remaining: number | null } | null;
+  quota?: QuotaState | null;
+}
+
+// A server-sent `error` event. `code` tells the UI whether this is something the
+// user can act on (wait for the reset, sign in) or a genuine failure.
+export interface StreamError {
+  code?: "QUOTA_EXCEEDED";
+  message: string;
+  limit?: number;
+  used?: number;
+  resetsAt?: string;
+  isGuest?: boolean;
 }
 
 export interface StreamDone {
@@ -27,7 +44,7 @@ interface StreamCallbacks {
   onSources?: (sources: Source[]) => void;
   onToken?: (text: string) => void;
   onDone?: (done: StreamDone) => void;
-  onError?: (message: string) => void;
+  onError?: (error: StreamError) => void;
 }
 
 export function streamAnswer(
@@ -64,14 +81,19 @@ export function streamAnswer(
 
   // NOTE: "error" fires for BOTH a server-sent `event: error` (has .data) and a
   // transport error (no .data) — including the normal socket close after "done".
+  //
+  // Anything the server wants to explain (quota exhausted, upstream AI down)
+  // arrives with .data. A bodyless error genuinely is a lost connection — the
+  // browser gives us no status code or body to say otherwise, which is exactly
+  // why the server sends refusals as events rather than as a 429.
   eventSource.addEventListener("error", (event) => {
     const messageEvent = event as MessageEvent;
     if (messageEvent.data) {
-      const payload = JSON.parse(messageEvent.data) as { message?: string };
-      callbacks.onError?.(payload.message ?? "Something went wrong.");
+      const payload = JSON.parse(messageEvent.data) as StreamError;
+      callbacks.onError?.({ ...payload, message: payload.message || "Something went wrong." });
       eventSource.close();
     } else if (!finished) {
-      callbacks.onError?.("Connection lost. Please try again.");
+      callbacks.onError?.({ message: "Connection lost. Please try again." });
       eventSource.close();
     }
   });

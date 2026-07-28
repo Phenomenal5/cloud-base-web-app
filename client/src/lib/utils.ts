@@ -31,3 +31,33 @@ export function formatRelativeTime(isoTimestamp: string) {
 
   return timestamp.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+
+// ─── formatTimeUntil: "in about 4 hours" / "in 25 minutes" ──
+// The forward-looking counterpart to formatRelativeTime, used to tell someone
+// who has hit their daily quota when they get access back. Deliberately vague at
+// the hour scale — "in about 4 hours" is friendlier than "in 3h 47m".
+// NOTE: same SSR caveat as formatRelativeTime — client-side render only.
+export function formatTimeUntil(isoTimestamp: string) {
+  const remainingSeconds = Math.round((new Date(isoTimestamp).getTime() - Date.now()) / 1000);
+
+  if (remainingSeconds <= 0) return "any moment now";
+  if (remainingSeconds < 60) return "in less than a minute";
+
+  const remainingMinutes = Math.round(remainingSeconds / 60);
+  if (remainingMinutes < 60) {
+    return `in ${remainingMinutes} minute${remainingMinutes === 1 ? "" : "s"}`;
+  }
+
+  const remainingHours = Math.round(remainingMinutes / 60);
+  return `in about ${remainingHours} hour${remainingHours === 1 ? "" : "s"}`;
+}
+
+// The reset instant as a local wall-clock time ("1:00 AM"). The server works in
+// UTC, but telling someone "midnight UTC" is useless if they're in Lagos or
+// Chicago — show it in their own timezone.
+export function formatLocalTime(isoTimestamp: string) {
+  return new Date(isoTimestamp).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
