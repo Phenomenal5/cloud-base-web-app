@@ -11,24 +11,26 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface AppHeaderProps {
-  // Chat page passes this to open the conversation drawer on mobile; other
-  // pages leave it undefined, so no menu button shows.
+  // Only the chat page passes this, to open its conversation drawer on mobile.
+  // Everywhere else leaves it undefined and no menu button renders.
   onMenuClick?: () => void;
 }
 
-export function AppHeader({ onMenuClick }: AppHeaderProps = {}) {
+export const AppHeader = ({ onMenuClick }: AppHeaderProps = {}) => {
   const router = useRouter();
   const { user, status } = useAppSelector((state) => state.auth);
   const [logout] = useLogoutMutation();
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  async function handleSignOut() {
-    setMenuOpen(false);
+  const handleSignOut = async () => {
+    setIsMenuOpen(false);
+    // Leave regardless: if the revoke call failed, the cookies are still cleared
+    // server-side on the next request, and stranding them here helps nobody.
     await logout()
       .unwrap()
       .catch(() => undefined);
     router.push("/");
-  }
+  };
 
   return (
     <header className="flex items-center justify-between border-b border-border px-4 py-2.5">
@@ -55,12 +57,12 @@ export function AppHeader({ onMenuClick }: AppHeaderProps = {}) {
         <ThemeToggle />
         {status === "authenticated" && user ? (
           <>
-            {/* Inside the auth branch so the feed is never fetched for a guest. */}
+            {/* Inside the auth branch, so the feed is never fetched for a guest. */}
             <NotificationBell />
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setMenuOpen((open) => !open)}
+                onClick={() => setIsMenuOpen((open) => !open)}
                 className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 text-sm transition hover:bg-surface-2"
               >
                 <Avatar name={user.displayName} src={user.avatarUrl} size={28} />
@@ -68,9 +70,9 @@ export function AppHeader({ onMenuClick }: AppHeaderProps = {}) {
                 <ChevronDown className="h-4 w-4 text-muted" />
               </button>
 
-              {menuOpen && (
+              {isMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                  <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)} />
                   <div className="absolute right-0 z-20 mt-1 w-56 rounded-lg border border-border bg-surface p-1 shadow-lg">
                     <div className="px-3 py-2">
                       <p className="truncate text-sm font-medium">{user.displayName}</p>
@@ -78,15 +80,16 @@ export function AppHeader({ onMenuClick }: AppHeaderProps = {}) {
                     </div>
                     <Link
                       href="/profile"
-                      onClick={() => setMenuOpen(false)}
+                      onClick={() => setIsMenuOpen(false)}
                       className="block rounded-md px-3 py-2 text-sm transition hover:bg-surface-2"
                     >
                       Profile
                     </Link>
+                    {/* Cosmetic only. The route and the API both check the role. */}
                     {(user.role === "ANALYST" || user.role === "ADMIN") && (
                       <Link
                         href="/reports"
-                        onClick={() => setMenuOpen(false)}
+                        onClick={() => setIsMenuOpen(false)}
                         className="block rounded-md px-3 py-2 text-sm transition hover:bg-surface-2"
                       >
                         Report triage
@@ -115,4 +118,4 @@ export function AppHeader({ onMenuClick }: AppHeaderProps = {}) {
       </div>
     </header>
   );
-}
+};

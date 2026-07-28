@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Divider } from "@/components/ui/Divider";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 
-export default function LoginPage() {
+const LoginPage = () => {
   const router = useRouter();
   const [login] = useLoginMutation();
 
@@ -24,6 +24,8 @@ export default function LoginPage() {
       try {
         await login(values).unwrap();
         toast.success("Signed in");
+        // The auth layout also redirects once status commits; this is just the
+        // faster path when it wins.
         router.push("/chat");
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Invalid email or password."));
@@ -38,6 +40,8 @@ export default function LoginPage() {
         <p className="mt-1 text-sm text-muted">Sign in to save and revisit your chats.</p>
       </header>
 
+      {/* noValidate: Yup owns validation, so the browser's native bubbles don't
+          compete with our inline messages. */}
       <form onSubmit={form.handleSubmit} className="flex flex-col gap-4" noValidate>
         <Input
           label="Email"
@@ -79,4 +83,6 @@ export default function LoginPage() {
       </p>
     </div>
   );
-}
+};
+
+export default LoginPage;

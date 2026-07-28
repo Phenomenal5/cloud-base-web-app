@@ -10,7 +10,7 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
-export default function ForgotPasswordPage() {
+const ForgotPasswordPage = () => {
   const [forgotPassword] = useForgotPasswordMutation();
   const [sentTo, setSentTo] = useState<string | null>(null);
 
@@ -28,6 +28,8 @@ export default function ForgotPasswordPage() {
     },
   });
 
+  // Worded as a conditional throughout, because the API deliberately doesn't say
+  // whether the account exists and this screen shouldn't either.
   if (sentTo) {
     return (
       <div className="flex flex-col gap-5">
@@ -40,7 +42,7 @@ export default function ForgotPasswordPage() {
         </header>
         <Link
           href={`/reset-password?email=${encodeURIComponent(sentTo)}`}
-          className="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-white transition hover:opacity-90"
+          className="inline-flex items-center justify-center rounded-lg bg-brand px-4 py-2.5 text-sm font-medium text-brand-contrast transition hover:opacity-90"
         >
           Enter reset code
         </Link>
@@ -83,4 +85,6 @@ export default function ForgotPasswordPage() {
       </p>
     </div>
   );
-}
+};
+
+export default ForgotPasswordPage;

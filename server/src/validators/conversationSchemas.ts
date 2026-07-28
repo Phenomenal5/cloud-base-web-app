@@ -1,7 +1,7 @@
 import * as yup from "yup";
 
-// ─── Conversation update schema (Yup) ─────────────────
-// All fields optional (partial update), but at least one must be present.
+// A partial update, so every field is optional, but an empty body is a mistake
+// rather than a no-op update.
 
 export const updateConversationSchema = yup
   .object({

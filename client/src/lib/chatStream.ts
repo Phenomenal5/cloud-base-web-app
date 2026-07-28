@@ -1,14 +1,12 @@
 import { config } from "./config";
 import type { Source, Citation } from "./types";
 
-// ─── Grounded Q&A streaming (SSE / EventSource) ───────
+// Opens the SSE connection to /ask and hands its named events to callbacks.
+// Returns a function that closes the stream, for cancelling a request.
 //
-// Opens an SSE connection to /ask and dispatches its named events to callbacks.
-// Returns a function that closes the stream (call it to cancel a request).
-//
-// EventSource is used (not axios) because it's the browser-native SSE consumer.
-// withCredentials sends the httpOnly auth cookie so signed-in users get a
-// persisted conversation; guests stream statelessly.
+// EventSource rather than axios, because it's the browser's native SSE consumer.
+// withCredentials sends the auth cookie, so signed-in users get a persisted
+// conversation and guests stream without one.
 
 export interface QuotaState {
   limit: number | null;
@@ -22,8 +20,8 @@ export interface StreamMeta {
   quota?: QuotaState | null;
 }
 
-// A server-sent `error` event. `code` tells the UI whether this is something the
-// user can act on (wait for the reset, sign in) or a genuine failure.
+// `code` is what tells the UI whether this is something the user can act on
+// (wait for the reset, sign in) or an actual failure.
 export interface StreamError {
   code?: "QUOTA_EXCEEDED";
   message: string;
@@ -79,13 +77,11 @@ export function streamAnswer(
     eventSource.close();
   });
 
-  // NOTE: "error" fires for BOTH a server-sent `event: error` (has .data) and a
-  // transport error (no .data) — including the normal socket close after "done".
-  //
-  // Anything the server wants to explain (quota exhausted, upstream AI down)
-  // arrives with .data. A bodyless error genuinely is a lost connection — the
-  // browser gives us no status code or body to say otherwise, which is exactly
-  // why the server sends refusals as events rather than as a 429.
+  // NOTE: "error" fires for two different things. A server-sent `event: error`
+  // arrives with .data; a transport error, including the normal socket close
+  // after "done", arrives without it. Anything the server wants to explain
+  // (quota exhausted, upstream down) comes with .data, which is exactly why the
+  // server sends refusals as events instead of as a 429 the browser would hide.
   eventSource.addEventListener("error", (event) => {
     const messageEvent = event as MessageEvent;
     if (messageEvent.data) {

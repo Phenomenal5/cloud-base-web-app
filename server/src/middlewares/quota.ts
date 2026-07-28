@@ -4,49 +4,40 @@ import AppError from "../utils/AppError.js";
 import { dailyLimitFor, usedToday, quotaResetsAt } from "../services/queryLogService.js";
 import { initSse, sendEvent } from "../utils/sse.js";
 
-// ─── Daily query quota (FR-11/12) ─────────────────────
-//
-// Mount AFTER optionalAuth (it reads req.user). Refuses the request once the
-// daily limit is reached — with a register prompt for guests (PRD §6.1). Stashes
-// the remaining count on res.locals.quota for the controller to echo back so the
+// Daily query quota. Mount after optionalAuth, since it reads req.user. Stashes
+// the remaining count on res.locals.quota for the controller to echo back, so the
 // UI can warn as the limit approaches.
 
 export interface QuotaInfo {
-  limit: number | null; // null = unlimited (admin)
+  limit: number | null; // null means unlimited (admin)
   remaining: number | null;
-  resetsAt: string | null; // ISO midnight UTC; null when unlimited
+  resetsAt: string | null; // ISO midnight UTC, null when unlimited
 }
 
-// With `trust proxy` set in prod, req.ip is the real client IP (guest identity).
+// `trust proxy` is set in production, so req.ip is the real client address.
 export function clientIp(req: Request): string {
   return req.ip ?? "unknown";
 }
 
-// EventSource always sends this Accept header, and it's the only thing that
-// distinguishes an SSE consumer here.
 function wantsEventStream(req: Request): boolean {
   return Boolean(req.headers.accept?.includes("text/event-stream"));
 }
 
-// ─── Refusing an over-quota request ───────────────────
-//
-// NOTE: a plain 429 is INVISIBLE to the browser on this route. EventSource
-// exposes neither the status code nor the body of a failed handshake — it just
-// fires a bodyless `error`, indistinguishable from a dropped connection. That's
-// why an exhausted user used to see "Connection lost. Please try again."
-//
-// So for SSE consumers we open the stream normally (200) and deliver the refusal
-// as an `error` EVENT, which the client can actually read. Non-SSE callers still
-// get a real 429 — the correct status for an API client.
+// NOTE: a plain 429 is invisible to EventSource. It exposes neither the status
+// code nor the body of a failed handshake, just a bodyless `error` that looks
+// exactly like a dropped connection, which is why an exhausted user used to see
+// "Connection lost". So SSE consumers get a normal 200 stream carrying an `error`
+// event they can actually read. Everyone else gets the real 429.
 function rejectOverQuota(
   req: Request,
   res: Response,
   details: { limit: number; used: number; isGuest: boolean },
 ): void {
   const resetsAt = quotaResetsAt();
+  const questions = details.limit === 1 ? "question" : "questions";
   const message = details.isGuest
-    ? `You've used all ${details.limit} free ${details.limit === 1 ? "question" : "questions"} for today.`
-    : `You've used all ${details.limit} of your questions for today.`;
+    ? `You've used all ${details.limit} free ${questions} for today.`
+    : `You've used all ${details.limit} of your ${questions} for today.`;
 
   if (wantsEventStream(req)) {
     initSse(res);
@@ -80,7 +71,7 @@ export const enforceQueryQuota = catchAsync(async (req, res, next) => {
     return rejectOverQuota(req, res, { limit, used, isGuest: !req.user });
   }
 
-  // Remaining once this query completes.
+  // What's left once this query completes.
   res.locals.quota = {
     limit,
     remaining: Math.max(0, limit - used - 1),

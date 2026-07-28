@@ -1,21 +1,20 @@
 import { useState } from 'react'
 import { Moon, Sun } from 'lucide-react'
 
-// Toggles the `.dark` class on <html> and persists the choice. The initial class
-// is set in main.tsx before render, so there's no flash.
-export function ThemeToggle() {
-  // Lazy init from the class main.tsx set before render — SPA (no SSR), so
-  // reading the DOM here is safe and avoids a setState-in-effect cascade.
+// The initial class is set in main.tsx before render, so there's no flash. This
+// is a client-only SPA with no SSR, so reading the DOM in the lazy initializer
+// is safe and avoids a setState-in-effect round trip.
+export const ThemeToggle = () => {
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'))
 
-  function toggleTheme() {
+  const toggleTheme = () => {
     const nextIsDark = !isDark
     setIsDark(nextIsDark)
     document.documentElement.classList.toggle('dark', nextIsDark)
     try {
       localStorage.setItem('theme', nextIsDark ? 'dark' : 'light')
     } catch {
-      // ignore storage failures
+      // Private mode and blocked storage: the toggle still works for this page.
     }
   }
 

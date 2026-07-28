@@ -24,12 +24,12 @@ const EXAMPLE_PROMPTS = [
   "Why do crews continue unstable approaches?",
 ];
 
-function timeOfDayGreeting(): string {
+const timeOfDayGreeting = (): string => {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
-}
+};
 
 interface ChatThreadProps {
   messages: DisplayMessage[];
@@ -37,18 +37,21 @@ interface ChatThreadProps {
   onExample: (prompt: string) => void;
 }
 
-export function ChatThread({ messages, userName, onExample }: ChatThreadProps) {
+export const ChatThread = ({ messages, userName, onExample }: ChatThreadProps) => {
   const bottomRef = useRef<HTMLDivElement>(null);
-  // Compute the time-based greeting after mount to avoid an SSR/client mismatch.
   const [greeting, setGreeting] = useState("Hello");
   const [openReportId, setOpenReportId] = useState<string | null>(null);
-  // Intentional: the greeting depends on the client's local time and must not be
-  // computed during SSR (deferred to a mount effect to avoid a hydration mismatch).
+
+  // NOTE: deferred to a mount effect because the greeting depends on the
+  // client's local clock, which the server can't know. Computing it during
+  // render is a hydration mismatch.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setGreeting(timeOfDayGreeting()), []);
 
+  // NOTE: instant, not smooth. This fires on every streamed token, and a smooth
+  // scroll that restarts a few times a second never settles.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
 
   if (messages.length === 0) {
@@ -81,8 +84,9 @@ export function ChatThread({ messages, userName, onExample }: ChatThreadProps) {
 
   return (
     <>
-      {/* min-h-0: without it a flex child won't shrink below its content, so this
-          would grow to the full message height and get clipped instead of scrolling. */}
+      {/* min-h-0 is required: without it this flex child won't shrink below its
+          content, so it grows to the full message height and clips instead of
+          scrolling. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6">
           {messages.map((message) =>
@@ -107,8 +111,8 @@ export function ChatThread({ messages, userName, onExample }: ChatThreadProps) {
                     <p className="text-sm text-muted">Searching the reports…</p>
                   ) : null}
 
-                  {/* Running out of questions isn't a failure — it gets its own
-                      explanatory panel with the reset time, not a red line. */}
+                  {/* Running out of questions isn't a failure, so it gets its own
+                      panel with the reset time rather than a red error line. */}
                   {message.error &&
                     (message.error.code === "QUOTA_EXCEEDED" ? (
                       <div className="mt-2">
@@ -145,9 +149,10 @@ export function ChatThread({ messages, userName, onExample }: ChatThreadProps) {
           <div ref={bottomRef} />
         </div>
       </div>
+
       {openReportId && (
         <ReportDetailModal reportId={openReportId} onClose={() => setOpenReportId(null)} />
       )}
     </>
   );
-}
+};

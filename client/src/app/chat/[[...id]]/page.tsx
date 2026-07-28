@@ -11,11 +11,11 @@ import { ChatThread, type DisplayMessage } from "@/components/chat/ChatThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { GuestBanner } from "@/components/chat/GuestBanner";
 
-// Optional catch-all route: this one component serves BOTH /chat (new chat) and
-// /chat/<conversationId>. The id lives in the path so refresh / back-forward /
-// bookmarking keep you in the same thread, and because both URLs resolve to this
-// same segment, navigating between them never remounts (streaming survives).
-export default function ChatPage() {
+// An optional catch-all route, so this one component serves both /chat and
+// /chat/<id>. Keeping the id in the path means refresh, back/forward and
+// bookmarks all land in the same thread, and because both URLs resolve to this
+// same segment, moving between them never remounts and streaming survives.
+const ChatPage = () => {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const params = useParams<{ id?: string[] }>();
@@ -29,34 +29,31 @@ export default function ChatPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [quota, setQuota] = useState<QuotaState | null>(null);
-  // ISO reset time once the daily allowance is spent — locks the composer so the
-  // next question can't fail the same way. Cleared when a new chat is started
-  // after the reset has passed.
+  // Set once the daily allowance is spent, so the composer locks instead of
+  // letting them send a question that can only fail.
   const [exhaustedUntil, setExhaustedUntil] = useState<string | null>(null);
 
   const [loadConversation] = useLazyGetConversationQuery();
   const cancelStreamRef = useRef<(() => void) | null>(null);
-  // The conversation whose messages are currently in state — lets the URL effect
-  // skip reloading a thread we already have (e.g. one we just created streaming).
+  // Which conversation's messages are currently in state. Lets the URL effect
+  // skip reloading a thread we already have, including one we just streamed.
   const loadedIdRef = useRef<string | undefined>(undefined);
 
-  function updateMessage(id: string, changes: Partial<DisplayMessage>) {
+  const updateMessage = (id: string, changes: Partial<DisplayMessage>) => {
     setMessages((previous) =>
       previous.map((message) => (message.id === id ? { ...message, ...changes } : message)),
     );
-  }
+  };
 
-  // ── Load the thread whenever the URL's /chat/<id> changes ──
-  // Sidebar clicks, back/forward, and the initial refresh all flow through here.
-  // Skips when the id already matches what's loaded so we don't refetch over
-  // live (just-streamed) messages.
+  // Sidebar clicks, back/forward and a cold refresh all arrive here as a changed
+  // URL param. The ref check is what stops it refetching over live messages.
   useEffect(() => {
     if (!isAuthenticated) return;
     if (conversationIdParam === loadedIdRef.current) return;
 
     cancelStreamRef.current?.();
-    /* eslint-disable react-hooks/set-state-in-effect -- intentional: sync loaded
-       state to the URL param (external input), not a render cascade. */
+    /* eslint-disable react-hooks/set-state-in-effect -- syncing to the URL param,
+       which is external input, not a render cascade. */
     setIsStreaming(false);
 
     if (!conversationIdParam) {
@@ -80,19 +77,19 @@ export default function ChatPage() {
             id: message.id,
             role: message.role,
             content: message.content,
-            sources: message.citations
-              ? message.citations.map((citation) => ({
-                  acn: citation.acn,
-                  reportId: citation.reportId,
-                  synopsis: null,
-                  similarity: 0,
-                }))
-              : undefined,
+            // Stored citations only carry acn and reportId. The synopsis and
+            // score were streaming-only, so the chips render without them.
+            sources: message.citations?.map((citation) => ({
+              acn: citation.acn,
+              reportId: citation.reportId,
+              synopsis: null,
+              similarity: 0,
+            })),
           })),
         );
       })
       .catch(() => {
-        // Not found / not owned — drop back to a fresh chat.
+        // Not found, or not theirs. Drop back to a fresh chat.
         if (cancelled) return;
         loadedIdRef.current = undefined;
         setMessages([]);
@@ -104,9 +101,8 @@ export default function ChatPage() {
     };
   }, [conversationIdParam, isAuthenticated, loadConversation, router]);
 
-  // ── Unlock the composer the moment the quota window rolls over ──
   // Someone who leaves the tab open past midnight UTC should get their questions
-  // back without reloading. Max delay here is 24h, well inside setTimeout's range.
+  // back without reloading. The delay is at most 24h, well inside setTimeout's range.
   useEffect(() => {
     if (!exhaustedUntil) return;
     const millisecondsUntilReset = Math.max(0, new Date(exhaustedUntil).getTime() - Date.now());
@@ -114,13 +110,13 @@ export default function ChatPage() {
     return () => clearTimeout(timer);
   }, [exhaustedUntil]);
 
-  // Sidebar select → point the URL at it; the effect above loads it.
-  function selectConversation(conversationId: string) {
+  // Point the URL at it and let the effect above do the loading.
+  const selectConversation = (conversationId: string) => {
     setIsSidebarOpen(false);
     router.push(`/chat/${conversationId}`);
-  }
+  };
 
-  function startNewChat() {
+  const startNewChat = () => {
     setIsSidebarOpen(false);
     cancelStreamRef.current?.();
     setIsStreaming(false);
@@ -131,9 +127,9 @@ export default function ChatPage() {
       setActiveConversationId(undefined);
       setMessages([]);
     }
-  }
+  };
 
-  function sendMessage(text: string) {
+  const sendMessage = (text: string) => {
     if (isStreaming || exhaustedUntil) return;
 
     const assistantMessageId = crypto.randomUUID();
@@ -160,41 +156,42 @@ export default function ChatPage() {
       onDone: (done) => {
         updateMessage(assistantMessageId, { streaming: false });
         setIsStreaming(false);
-        // A brand-new conversation was created server-side (signed-in users). Adopt
-        // its id and reflect it in the URL so refresh/bookmark keep this thread.
+
+        // The server created a conversation for this first message, so adopt its
+        // id and put it in the URL.
         //
-        // Do this AFTER streaming, never mid-stream. Changing the URL while tokens
-        // are arriving — even via the History API — makes Next start a router
-        // transition, and React defers the low-priority streaming updates caught in
-        // it, so nothing paints until a click forces a flush (the "I have to click
-        // the page for the response to come in" bug). By onDone there are no more
-        // updates to stall. loadedIdRef is set first so the URL effect skips
-        // reloading a thread we already have; replaceState is deferred one tick so
-        // this final render paints before the router re-syncs the pathname.
+        // NOTE: this has to happen after streaming, never during. Changing the
+        // URL mid-stream, even through the History API, starts a Next router
+        // transition, and React defers the low-priority streaming updates caught
+        // in it, so nothing paints until a click forces a flush. That was the
+        // "I have to click the page for the response to appear" bug. Setting
+        // loadedIdRef first stops the URL effect reloading a thread we already
+        // have, and replaceState is deferred a tick so this last render paints
+        // before the router re-syncs the pathname.
         if (done.conversationId && !activeConversationId) {
-          const newId = done.conversationId;
-          loadedIdRef.current = newId;
-          setActiveConversationId(newId);
+          const newConversationId = done.conversationId;
+          loadedIdRef.current = newConversationId;
+          setActiveConversationId(newConversationId);
           dispatch(api.util.invalidateTags([{ type: "Conversation", id: "LIST" }]));
-          setTimeout(() => window.history.replaceState(null, "", `/chat/${newId}`), 0);
+          setTimeout(() => window.history.replaceState(null, "", `/chat/${newConversationId}`), 0);
         }
       },
       onError: (error) => {
         updateMessage(assistantMessageId, { streaming: false, error });
         setIsStreaming(false);
-        // Remember the reset time so the composer stays locked and explains
-        // itself, instead of letting them fire off another doomed question.
+        // Remember the reset time so the composer explains itself instead of
+        // letting them fire off another doomed question.
         if (error.code === "QUOTA_EXCEEDED" && error.resetsAt) {
           setExhaustedUntil(error.resetsAt);
           setQuota({ limit: error.limit ?? null, remaining: 0, resetsAt: error.resetsAt });
         }
       },
     });
-  }
+  };
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      {/* Navbar spans the full width; the sidebar and chat area sit in a row below it. */}
+      {/* The header spans the full width; the sidebar and chat sit in a row below. */}
       <AppHeader onMenuClick={isAuthenticated ? () => setIsSidebarOpen(true) : undefined} />
 
       <div className="flex flex-1 overflow-hidden">
@@ -221,4 +218,6 @@ export default function ChatPage() {
       </div>
     </div>
   );
-}
+};
+
+export default ChatPage;

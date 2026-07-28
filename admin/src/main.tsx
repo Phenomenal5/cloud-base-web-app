@@ -5,11 +5,11 @@ import { store } from '@/store/store'
 import './index.css'
 import App from './App.tsx'
 
-// Apply the saved theme before render (default light) — no flash.
+// Applied before render so there's no flash of the wrong theme.
 try {
   if (localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark')
 } catch {
-  // ignore storage failures
+  // Private mode and blocked storage: fall back to light.
 }
 
 createRoot(document.getElementById('root')!).render(

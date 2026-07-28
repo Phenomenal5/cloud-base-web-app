@@ -28,26 +28,33 @@ const SEVERITY_TEXT: Record<Severity, string> = {
   HIGH: "text-rose-600 dark:text-rose-400",
 };
 
-function formatCategory(category: string): string {
-  const words = category.replace(/_/g, " ").toLowerCase();
-  return words.charAt(0).toUpperCase() + words.slice(1);
-}
-
-const SELECT_CLASS =
+const FIELD_CLASS =
   "rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-brand";
 
-function TriageContent() {
+const PAGER_BUTTON_CLASS =
+  "inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40";
+
+const formatCategory = (category: string): string => {
+  const words = category.replace(/_/g, " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+const TriageContent = () => {
   const [filters, setFilters] = useState<ReportFilters>({ page: 1 });
   const [openReportId, setOpenReportId] = useState<string | null>(null);
   const { data, isFetching } = useListReportsQuery(filters);
 
-  // Any filter change resets to the first page.
-  function updateFilter(changes: Partial<ReportFilters>) {
+  // Any filter change goes back to page 1, since page 4 of the old result set
+  // usually doesn't exist in the new one.
+  const updateFilter = (changes: Partial<ReportFilters>) => {
     setFilters((previous) => ({ ...previous, ...changes, page: 1 }));
-  }
+  };
+
+  const goToPage = (page: number) => setFilters((previous) => ({ ...previous, page }));
 
   const page = data?.page ?? 1;
   const totalPages = data?.pages ?? 1;
+  const hasFilters = Boolean(filters.category || filters.severity || filters.from || filters.to);
 
   return (
     <main className="mx-auto w-full max-w-4xl px-4 py-8">
@@ -56,14 +63,13 @@ function TriageContent() {
         Browse the corpus by AI-assigned category and severity.
       </p>
 
-      {/* Filters */}
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <select
           value={filters.category ?? ""}
           onChange={(event) =>
             updateFilter({ category: (event.target.value || undefined) as Category | undefined })
           }
-          className={SELECT_CLASS}
+          className={FIELD_CLASS}
         >
           <option value="">All categories</option>
           {CATEGORIES.map((category) => (
@@ -78,7 +84,7 @@ function TriageContent() {
           onChange={(event) =>
             updateFilter({ severity: (event.target.value || undefined) as Severity | undefined })
           }
-          className={SELECT_CLASS}
+          className={FIELD_CLASS}
         >
           <option value="">All severities</option>
           {SEVERITIES.map((severity) => (
@@ -92,18 +98,18 @@ function TriageContent() {
           type="date"
           value={filters.from ?? ""}
           onChange={(event) => updateFilter({ from: event.target.value || undefined })}
-          className={SELECT_CLASS}
+          className={FIELD_CLASS}
           aria-label="From date"
         />
         <input
           type="date"
           value={filters.to ?? ""}
           onChange={(event) => updateFilter({ to: event.target.value || undefined })}
-          className={SELECT_CLASS}
+          className={FIELD_CLASS}
           aria-label="To date"
         />
 
-        {(filters.category || filters.severity || filters.from || filters.to) && (
+        {hasFilters && (
           <button
             type="button"
             onClick={() => setFilters({ page: 1 })}
@@ -114,8 +120,9 @@ function TriageContent() {
         )}
       </div>
 
-      {/* List */}
       <div className="mt-4 overflow-hidden rounded-xl border border-border">
+        {/* Only spin on the very first load. Later fetches keep the old rows on
+            screen so the list doesn't flash on every filter change. */}
         {isFetching && !data ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-brand" />
@@ -154,14 +161,13 @@ function TriageContent() {
         )}
       </div>
 
-      {/* Pagination */}
       {data && totalPages > 1 && (
         <div className="mt-4 flex items-center justify-center gap-3 text-sm">
           <button
             type="button"
             disabled={page <= 1}
-            onClick={() => setFilters((previous) => ({ ...previous, page: page - 1 }))}
-            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40"
+            onClick={() => goToPage(page - 1)}
+            className={PAGER_BUTTON_CLASS}
           >
             <ChevronLeft className="h-4 w-4" /> Prev
           </button>
@@ -171,8 +177,8 @@ function TriageContent() {
           <button
             type="button"
             disabled={page >= totalPages}
-            onClick={() => setFilters((previous) => ({ ...previous, page: page + 1 }))}
-            className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40"
+            onClick={() => goToPage(page + 1)}
+            className={PAGER_BUTTON_CLASS}
           >
             Next <ChevronRight className="h-4 w-4" />
           </button>
@@ -184,11 +190,13 @@ function TriageContent() {
       )}
     </main>
   );
-}
+};
 
-export default function ReportsPage() {
+const ReportsPage = () => {
   const router = useRouter();
   const { user, status } = useAppSelector((state) => state.auth);
+  // Cosmetic only. The API enforces the same rule, so hiding the page isn't the
+  // access control, just the UX.
   const canView = user?.role === "ANALYST" || user?.role === "ADMIN";
 
   useEffect(() => {
@@ -208,4 +216,6 @@ export default function ReportsPage() {
       )}
     </div>
   );
-}
+};
+
+export default ReportsPage;

@@ -18,11 +18,12 @@ import { sendVerificationCode, sendPasswordResetCode } from "../services/emailSe
 import { toPublicUser } from "../utils/serializeUser.js";
 import type { Role, UserStatus } from "../generated/prisma/enums.js";
 
+const BLOCKED_MESSAGE = "Your account has been blocked. Please contact support.";
+
 // ─── Helpers ──────────────────────────────────────────
 
-// Create a refresh-token record + set auth cookies, and return the raw tokens.
-// Tokens are ALSO returned in the response body so non-browser clients
-// (mobile/desktop) can hold them; web clients ignore the body and use cookies.
+// Tokens are also returned in the body so non-browser clients (mobile, desktop)
+// can hold them; web clients ignore the body and use the cookies.
 async function issueSession(
   res: Response,
   user: { id: string; role: Role },
@@ -36,9 +37,7 @@ async function issueSession(
   return { accessToken, refreshToken: refresh.raw };
 }
 
-// Issue a fresh 6-digit code: invalidate any prior unconsumed codes (only the
-// newest is valid), persist the new one's hash, and email it. Used by register
-// and resend.
+// Consuming the previous codes first means only the newest one ever works.
 async function issueVerificationCode(userId: string, email: string): Promise<void> {
   const { code, hash } = generateVerificationCode();
   await prisma.emailVerificationToken.updateMany({
@@ -51,8 +50,19 @@ async function issueVerificationCode(userId: string, email: string): Promise<voi
   await sendVerificationCode(email, code);
 }
 
-// Refresh token can arrive via the httpOnly cookie (web) or the request body
-// (mobile/desktop clients that don't use cookies).
+async function issuePasswordResetCode(userId: string, email: string): Promise<void> {
+  const { code, hash } = generateVerificationCode();
+  await prisma.passwordResetToken.updateMany({
+    where: { userId, consumedAt: null },
+    data: { consumedAt: new Date() },
+  });
+  await prisma.passwordResetToken.create({
+    data: { codeHash: hash, userId, expiresAt: passwordResetExpiry() },
+  });
+  await sendPasswordResetCode(email, code);
+}
+
+// Cookie for web clients, body for everyone else.
 function extractRefreshToken(req: Request): string | undefined {
   const fromCookie = req.cookies?.[COOKIE_NAMES.REFRESH];
   if (fromCookie) return fromCookie;
@@ -61,8 +71,8 @@ function extractRefreshToken(req: Request): string | undefined {
 }
 
 // ─── POST /api/auth/register ──────────────────────────
-// Creates the account (unverified) and emails a code. No session is issued —
-// the user "logs in" by verifying that code (see verifyEmail).
+// Creates the account unverified and emails a code. No session yet: verifying
+// that code is what logs the user in.
 export const register = catchAsync(async (req, res) => {
   const { email, password, displayName } = req.body as {
     email: string;
@@ -73,17 +83,15 @@ export const register = catchAsync(async (req, res) => {
   const existing = await prisma.user.findUnique({ where: { email } });
 
   if (existing) {
-    // Already verified → a real duplicate. Send them to login, don't resend.
     if (existing.emailVerified) {
       throw new AppError("An account with that email already exists. Please log in.", 409);
     }
-    if (existing.status === "BLOCKED") {
-      throw new AppError("Your account has been blocked. Please contact support.", 403);
-    }
-    // Signed up before but never verified → the account is unclaimed. Refresh its
-    // credentials to what they just entered and resend a code, so the frontend can
-    // route them straight to the verification page. Safe: activation still needs
-    // the code emailed to this address, so this can't hijack a pending signup.
+    if (existing.status === "BLOCKED") throw new AppError(BLOCKED_MESSAGE, 403);
+
+    // Signed up before but never verified, so the account is unclaimed. Reset it
+    // to what they just typed and resend, which lets the frontend route them
+    // straight to the verification page. Safe because activating it still needs
+    // the code emailed to this address.
     const passwordHash = await hashPassword(password);
     const updated = await prisma.user.update({
       where: { id: existing.id },
@@ -101,7 +109,6 @@ export const register = catchAsync(async (req, res) => {
 
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.create({ data: { email, passwordHash, displayName } });
-
   await issueVerificationCode(user.id, user.email);
 
   res.status(201).json({
@@ -111,18 +118,15 @@ export const register = catchAsync(async (req, res) => {
 });
 
 // ─── POST /api/auth/verify-email ──────────────────────
-// Validates the emailed code, marks the account verified, and issues the
-// session — this is what logs the user in after registration.
 export const verifyEmail = catchAsync(async (req, res) => {
   const { email, code } = req.body as { email: string; code: string };
 
   const user = await prisma.user.findUnique({ where: { email } });
-  // Generic message — don't reveal whether the email exists.
+  // Same message whether the account exists or the code is wrong, so this can't
+  // be used to enumerate registered emails.
   if (!user) throw new AppError("Invalid or expired verification code.", 400);
   if (user.emailVerified) throw new AppError("Email already verified. Please log in.", 409);
-  if (user.status === "BLOCKED") {
-    throw new AppError("Your account has been blocked. Please contact support.", 403);
-  }
+  if (user.status === "BLOCKED") throw new AppError(BLOCKED_MESSAGE, 403);
 
   const token = await prisma.emailVerificationToken.findFirst({
     where: {
@@ -134,7 +138,8 @@ export const verifyEmail = catchAsync(async (req, res) => {
   });
   if (!token) throw new AppError("Invalid or expired verification code.", 400);
 
-  // Mark verified + consume the code atomically before issuing the session.
+  // Verify and consume together, so a code can't be replayed if the second write
+  // fails.
   await prisma.$transaction([
     prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } }),
     prisma.emailVerificationToken.update({
@@ -151,8 +156,7 @@ export const verifyEmail = catchAsync(async (req, res) => {
 });
 
 // ─── POST /api/auth/resend-verification ───────────────
-// Always responds the same way, whether or not a matching unverified account
-// exists, to avoid leaking which emails are registered.
+// Always the same response, so it can't be used to enumerate emails.
 export const resendVerification = catchAsync(async (req, res) => {
   const { email } = req.body as { email: string };
 
@@ -172,15 +176,12 @@ export const login = catchAsync(async (req, res) => {
 
   const user = await prisma.user.findUnique({ where: { email } });
 
-  // Same generic message whether the email is unknown, the account is OAuth-only,
-  // or the password is wrong — don't reveal which emails are registered.
+  // One message for unknown email, OAuth-only account, and wrong password alike.
   if (!user || !user.passwordHash || !(await verifyPassword(password, user.passwordHash))) {
     throw new AppError("Invalid email or password.", 401);
   }
 
-  if (user.status === "BLOCKED") {
-    throw new AppError("Your account has been blocked. Please contact support.", 403);
-  }
+  if (user.status === "BLOCKED") throw new AppError(BLOCKED_MESSAGE, 403);
   if (!user.emailVerified) {
     throw new AppError("Please verify your email before logging in.", 403);
   }
@@ -203,18 +204,18 @@ export const refresh = catchAsync(async (req, res) => {
     throw new AppError("Session expired. Please log in again.", 401);
   }
 
-  // A user blocked mid-session loses it at the next refresh.
+  // Someone blocked mid-session loses it here, at their next refresh.
   if (record.user.status === "BLOCKED") {
     await prisma.refreshToken.update({
       where: { id: record.id },
       data: { revokedAt: new Date() },
     });
     clearAuthCookies(res);
-    throw new AppError("Your account has been blocked. Please contact support.", 403);
+    throw new AppError(BLOCKED_MESSAGE, 403);
   }
 
-  // Rotate: revoke the used token and issue a fresh one in one transaction, so a
-  // stolen-and-replayed refresh token can't outlive its first legitimate use.
+  // Rotate in one transaction, so a stolen token can't outlive its first
+  // legitimate use.
   const next = generateRefreshToken();
   await prisma.$transaction([
     prisma.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } }),
@@ -235,7 +236,8 @@ export const refresh = catchAsync(async (req, res) => {
 export const logout = catchAsync(async (req, res) => {
   const raw = extractRefreshToken(req);
   if (raw) {
-    // Revoke the presented token (no-op if unknown).
+    // updateMany rather than update, so an unknown token is a no-op instead of a
+    // 404 that would tell the caller whether the token was real.
     await prisma.refreshToken.updateMany({
       where: { tokenHash: hashToken(raw), revokedAt: null },
       data: { revokedAt: new Date() },
@@ -247,48 +249,33 @@ export const logout = catchAsync(async (req, res) => {
 
 // ─── GET /api/auth/me ─────────────────────────────────
 export const me = catchAsync(async (req, res) => {
-  // `protect` guarantees req.user is set.
   const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
   if (!user) throw new AppError("User not found.", 404);
   res.status(200).json({ data: { user: toPublicUser(user) } });
 });
 
 // ─── GET /api/auth/google/callback ────────────────────
-// Runs after passport's Google strategy. passport set req.user to the resolved
-// user; we mint our own JWT cookie session and redirect back to the frontend.
+// Runs after passport's strategy has resolved req.user. We mint our own cookie
+// session and hand the browser back to the frontend.
 export const googleCallback = catchAsync(async (req, res) => {
   const user = req.user as unknown as { id: string; role: Role; status: UserStatus } | undefined;
 
-  if (!user) {
-    res.redirect(env.oauthFailureRedirect);
-    return;
-  }
+  if (!user) return res.redirect(env.oauthFailureRedirect);
+
   if (user.status === "BLOCKED") {
-    res.redirect(`${env.oauthFailureRedirect}&reason=blocked`);
-    return;
+    // Built through URL so this works whether or not the configured failure
+    // redirect already carries a query string.
+    const failure = new URL(env.oauthFailureRedirect);
+    failure.searchParams.set("reason", "blocked");
+    return res.redirect(failure.toString());
   }
 
   await issueSession(res, { id: user.id, role: user.role });
   res.redirect(env.oauthSuccessRedirect);
 });
 
-// Issue a fresh reset code: invalidate prior unconsumed codes, persist the new
-// hash, and email it.
-async function issuePasswordResetCode(userId: string, email: string): Promise<void> {
-  const { code, hash } = generateVerificationCode();
-  await prisma.passwordResetToken.updateMany({
-    where: { userId, consumedAt: null },
-    data: { consumedAt: new Date() },
-  });
-  await prisma.passwordResetToken.create({
-    data: { codeHash: hash, userId, expiresAt: passwordResetExpiry() },
-  });
-  await sendPasswordResetCode(email, code);
-}
-
 // ─── POST /api/auth/forgot-password ───────────────────
-// Always responds the same way, whether or not the account exists, to avoid
-// leaking which emails are registered.
+// Always the same response, so it can't be used to enumerate emails.
 export const forgotPassword = catchAsync(async (req, res) => {
   const { email } = req.body as { email: string };
 
@@ -303,8 +290,6 @@ export const forgotPassword = catchAsync(async (req, res) => {
 });
 
 // ─── POST /api/auth/reset-password ────────────────────
-// Verifies the code, sets the new password, and revokes ALL refresh tokens so
-// every existing session is logged out (FR-5).
 export const resetPassword = catchAsync(async (req, res) => {
   const { email, code, newPassword } = req.body as {
     email: string;
@@ -329,7 +314,8 @@ export const resetPassword = catchAsync(async (req, res) => {
   await prisma.$transaction([
     prisma.user.update({ where: { id: user.id }, data: { passwordHash } }),
     prisma.passwordResetToken.update({ where: { id: token.id }, data: { consumedAt: new Date() } }),
-    // Revoke every session — a reset should log the user out everywhere.
+    // A reset signs the user out everywhere, which is the point of it if the
+    // account was compromised.
     prisma.refreshToken.updateMany({
       where: { userId: user.id, revokedAt: null },
       data: { revokedAt: new Date() },

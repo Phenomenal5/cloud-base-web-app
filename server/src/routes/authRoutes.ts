@@ -25,8 +25,7 @@ import {
   resetPasswordSchema,
 } from "../validators/authSchemas.js";
 
-// ─── /api/auth ────────────────────────────────────────
-// Thin wiring only: rate limit → validate → controller.
+// Wiring only: rate limit, validate, controller.
 
 const router = Router();
 
@@ -215,7 +214,8 @@ router.post("/reset-password", authLimiter, validate(resetPasswordSchema), reset
  *       401: { description: Missing, expired, or revoked refresh token }
  *       403: { description: Account blocked }
  */
-router.post("/refresh", refresh); // auth is the refresh token itself (cookie or body)
+// No `protect` here: the refresh token itself is the credential.
+router.post("/refresh", refresh);
 
 /**
  * @openapi
@@ -250,9 +250,8 @@ router.post("/logout", logout);
  */
 router.get("/me", protect, me);
 
-// ── Google OAuth (FR-3) ───────────────────────────────
-// Short-circuits with 503 when unconfigured, so the passport middleware (which
-// would throw "Unknown strategy") never runs without creds.
+// Answers 503 when OAuth isn't configured, so the passport middleware never runs
+// without credentials and throws "Unknown strategy".
 const requireGoogle: RequestHandler = (_req, res, next) => {
   if (!isGoogleOAuthEnabled) {
     res.status(503).json({ status: "fail", message: "Google login is not configured." });

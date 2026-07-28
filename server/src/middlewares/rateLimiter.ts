@@ -1,29 +1,27 @@
 import rateLimit from "express-rate-limit";
 
-// ─── Rate limiting ────────────────────────────────────
-//
-// A global baseline limiter to blunt abuse. Tighter per-route limiters (auth,
-// query, password-reset) and the per-user / per-IP query quotas arrive with
-// those features (PRD §8.1 / §8.5).
-//
-// NOTE: in-memory store on purpose — the PRD explicitly rules out Redis (§9.3).
-// When the backend actually runs multiple instances, swap this for a
-// Prisma-backed store so counts are shared. Simple first; scale when needed.
+// NOTE: in-memory store on purpose, since the stack deliberately has no Redis.
+// Counts are therefore per-instance. If the API ever runs more than one instance,
+// swap in a Prisma-backed store so the windows are shared.
 
-export const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 300, // per window per IP
+const shared = {
   standardHeaders: "draft-7",
   legacyHeaders: false,
+} as const;
+
+// Global baseline, applied to every request.
+export const generalLimiter = rateLimit({
+  ...shared,
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
   message: { status: "fail", message: "Too many requests, please try again later." },
 });
 
-// Stricter limiter for auth endpoints (login/register) to slow credential
-// stuffing and brute force (PRD §8.1). Password-reset gets its own when built.
+// Tighter window for login, registration, verification and password reset, to
+// slow credential stuffing and brute-forcing of the 6-digit codes.
 export const authLimiter = rateLimit({
+  ...shared,
   windowMs: 15 * 60 * 1000,
   limit: 20,
-  standardHeaders: "draft-7",
-  legacyHeaders: false,
   message: { status: "fail", message: "Too many attempts, please try again later." },
 });

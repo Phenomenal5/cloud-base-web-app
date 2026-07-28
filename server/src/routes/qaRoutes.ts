@@ -3,10 +3,7 @@ import { ask } from "../controllers/qaController.js";
 import { optionalAuth } from "../middlewares/auth.js";
 import { enforceQueryQuota } from "../middlewares/quota.js";
 
-// ─── /api/ask ─────────────────────────────────────────
-// GET so the browser's native EventSource can consume the stream. optionalAuth:
-// signed-in users get a persisted, multi-turn conversation; guests answer only.
-// enforceQueryQuota rejects (429) before the stream opens if over the daily cap.
+// GET rather than POST because EventSource can only issue a GET.
 
 const router = Router();
 
@@ -31,7 +28,7 @@ const router = Router();
  *         name: query
  *         required: true
  *         schema: { type: string, maxLength: 500 }
- *         description: The question (≤500 chars, FR-13)
+ *         description: The question (max 500 chars)
  *       - in: query
  *         name: conversationId
  *         schema: { type: string, format: uuid }

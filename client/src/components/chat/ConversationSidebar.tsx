@@ -22,22 +22,25 @@ import { useDebounce } from "@/hooks/useDebounce";
 import type { ConversationSummary } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+const MENU_ITEM_CLASS =
+  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition hover:bg-surface-2";
+
 interface ConversationSidebarProps {
   activeId?: string;
   onSelect: (conversationId: string) => void;
   onNewChat: () => void;
-  // Mobile drawer state — ignored by the always-on desktop column.
+  // Mobile drawer state. The always-on desktop column ignores both.
   isOpen?: boolean;
   onClose?: () => void;
 }
 
-export function ConversationSidebar({
+export const ConversationSidebar = ({
   activeId,
   onSelect,
   onNewChat,
   isOpen = false,
   onClose,
-}: ConversationSidebarProps) {
+}: ConversationSidebarProps) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showArchived, setShowArchived] = useState(false);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -50,39 +53,42 @@ export function ConversationSidebar({
   const [updateConversation] = useUpdateConversationMutation();
   const [deleteConversation] = useDeleteConversationMutation();
 
-  // Close the mobile drawer on Escape for keyboard/accessibility parity.
+  // Escape closes the drawer, for keyboard parity with the close button.
   useEffect(() => {
     if (!isOpen || !onClose) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose?.();
-    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  async function togglePin(conversation: ConversationSummary) {
+  // These failures are cosmetic and RTK Query rolls the cache back on its own,
+  // so there's nothing useful to say beyond closing the menu.
+  const togglePin = async (conversation: ConversationSummary) => {
     setOpenMenuId(null);
     await updateConversation({ id: conversation.id, pinned: !conversation.pinned })
       .unwrap()
       .catch(() => undefined);
-  }
+  };
 
-  async function toggleArchive(conversation: ConversationSummary) {
+  const toggleArchive = async (conversation: ConversationSummary) => {
     setOpenMenuId(null);
     await updateConversation({ id: conversation.id, archived: !conversation.archived })
       .unwrap()
       .catch(() => undefined);
-  }
+  };
 
-  async function handleDelete(conversationId: string) {
+  const handleDelete = async (conversationId: string) => {
     setOpenMenuId(null);
     await deleteConversation(conversationId)
       .unwrap()
       .catch(() => undefined);
+    // Deleting the thread you're reading leaves nothing to show.
     if (conversationId === activeId) onNewChat();
-  }
+  };
 
-  // Shared body, rendered in both the desktop column and the mobile drawer.
+  // Rendered in both the desktop column and the mobile drawer.
   const panelBody = (
     <>
       <div className="flex flex-col gap-2 p-3">
@@ -110,7 +116,7 @@ export function ConversationSidebar({
         </span>
         <button
           type="button"
-          onClick={() => setShowArchived((previous) => !previous)}
+          onClick={() => setShowArchived((archived) => !archived)}
           className="text-xs text-brand hover:underline"
         >
           {showArchived ? "Show active" : "Show archived"}
@@ -162,12 +168,13 @@ export function ConversationSidebar({
 
                 {openMenuId === conversation.id && (
                   <>
+                    {/* Full-screen catcher so clicking anywhere else closes the menu. */}
                     <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
                     <div className="absolute right-1 top-9 z-20 w-40 rounded-lg border border-border bg-surface p-1 shadow-lg">
                       <button
                         type="button"
                         onClick={() => togglePin(conversation)}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition hover:bg-surface-2"
+                        className={MENU_ITEM_CLASS}
                       >
                         {conversation.pinned ? (
                           <PinOff className="h-4 w-4" />
@@ -179,7 +186,7 @@ export function ConversationSidebar({
                       <button
                         type="button"
                         onClick={() => toggleArchive(conversation)}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition hover:bg-surface-2"
+                        className={MENU_ITEM_CLASS}
                       >
                         {conversation.archived ? (
                           <ArchiveRestore className="h-4 w-4" />
@@ -191,7 +198,7 @@ export function ConversationSidebar({
                       <button
                         type="button"
                         onClick={() => handleDelete(conversation.id)}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm text-rose-600 transition hover:bg-surface-2 dark:text-rose-400"
+                        className={cn(MENU_ITEM_CLASS, "text-rose-600 dark:text-rose-400")}
                       >
                         <Trash2 className="h-4 w-4" /> Delete
                       </button>
@@ -208,12 +215,12 @@ export function ConversationSidebar({
 
   return (
     <>
-      {/* Desktop: static column that's always present from the `sm` breakpoint up. */}
+      {/* Desktop: a static column from the sm breakpoint up. */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border sm:flex">
         {panelBody}
       </aside>
 
-      {/* Mobile: dimming scrim behind the drawer. */}
+      {/* Mobile: scrim behind the drawer. */}
       <div
         aria-hidden
         onClick={onClose}
@@ -223,7 +230,7 @@ export function ConversationSidebar({
         )}
       />
 
-      {/* Mobile: drawer that slides in from the left, mirroring the desktop column. */}
+      {/* Mobile: the drawer itself. */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-border bg-background transition-transform duration-200 ease-out sm:hidden",
@@ -245,4 +252,4 @@ export function ConversationSidebar({
       </aside>
     </>
   );
-}
+};

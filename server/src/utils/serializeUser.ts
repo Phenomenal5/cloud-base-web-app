@@ -1,11 +1,8 @@
 import { env } from "../config/env.js";
 import type { Role, UserStatus } from "../generated/prisma/enums.js";
 
-// ─── Public user serialization ────────────────────────
-//
-// The single source of truth for what a user looks like to clients. Never
-// exposes passwordHash. `avatarPath` is turned into an absolute URL the client
-// can drop straight into an <img src>.
+// The single definition of what a user looks like to a client. Everything that
+// returns a user goes through here, so passwordHash can never leak by accident.
 
 export const PUBLIC_USER_SELECT = {
   id: true,
@@ -37,6 +34,7 @@ export function toPublicUser(user: PublicUserRow) {
     role: user.role,
     status: user.status,
     emailVerified: user.emailVerified,
+    // Absolute, so the client can drop it straight into an <img src>.
     avatarUrl: user.avatarPath ? `${env.publicBaseUrl}/uploads/avatars/${user.avatarPath}` : null,
     createdAt: user.createdAt,
   };

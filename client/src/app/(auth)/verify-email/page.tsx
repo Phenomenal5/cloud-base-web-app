@@ -10,7 +10,7 @@ import { getApiErrorMessage } from "@/lib/apiError";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
-function VerifyEmailForm() {
+const VerifyEmailForm = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams.get("email") ?? "";
@@ -23,7 +23,8 @@ function VerifyEmailForm() {
     initialValues: { email: emailFromQuery, code: "" },
     onSubmit: async (values) => {
       try {
-        await verifyEmail(values).unwrap(); // verified + signed in
+        // Verifying the code is also what signs them in.
+        await verifyEmail(values).unwrap();
         toast.success("Email verified");
         router.push("/chat");
       } catch (error) {
@@ -58,6 +59,7 @@ function VerifyEmailForm() {
       </header>
 
       <form onSubmit={form.handleSubmit} className="flex flex-col gap-4" noValidate>
+        {/* Only asked for when we didn't arrive here from registration. */}
         {!emailFromQuery && (
           <Input
             label="Email"
@@ -98,12 +100,14 @@ function VerifyEmailForm() {
       </p>
     </div>
   );
-}
+};
 
-export default function VerifyEmailPage() {
-  return (
-    <Suspense fallback={<div className="py-6 text-center text-sm text-muted">Loading…</div>}>
-      <VerifyEmailForm />
-    </Suspense>
-  );
-}
+// useSearchParams needs a Suspense boundary, otherwise the whole route opts out
+// of static rendering.
+const VerifyEmailPage = () => (
+  <Suspense fallback={<div className="py-6 text-center text-sm text-muted">Loading…</div>}>
+    <VerifyEmailForm />
+  </Suspense>
+);
+
+export default VerifyEmailPage;

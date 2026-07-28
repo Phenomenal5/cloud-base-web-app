@@ -10,15 +10,15 @@ import {
 import type { AppNotification } from "@/lib/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
-// Admin broadcasts are written straight to Postgres — there's no socket or push
-// channel — so polling is the only way a new one reaches an open tab.
+// Admin broadcasts are written straight to Postgres, with no socket or push
+// channel, so polling is the only way a new one reaches an open tab.
 const POLL_INTERVAL_MS = 60_000;
 
-export function NotificationBell() {
+export const NotificationBell = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { data, isLoading } = useListNotificationsQuery(undefined, {
     pollingInterval: POLL_INTERVAL_MS,
-    skipPollingIfUnfocused: true, // a backgrounded tab doesn't need the traffic
+    skipPollingIfUnfocused: true,
   });
   const [markNotificationRead] = useMarkNotificationReadMutation();
   const [markAllNotificationsRead] = useMarkAllNotificationsReadMutation();
@@ -26,29 +26,29 @@ export function NotificationBell() {
   const notifications = data?.notifications ?? [];
   const unreadCount = data?.unread ?? 0;
 
-  // Escape closes the panel, matching the chat drawer's behaviour.
+  // Escape closes the panel, matching the chat drawer.
   useEffect(() => {
     if (!isOpen) return;
-    function handleKeyDown(event: KeyboardEvent) {
+    const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") setIsOpen(false);
-    }
+    };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
-  // Notifications carry no link target, so a click is purely a read-receipt.
-  async function handleRead(notification: AppNotification) {
+  // Notifications carry no link target, so a click is purely a read receipt.
+  const handleRead = async (notification: AppNotification) => {
     if (notification.readAt) return;
     await markNotificationRead(notification.id)
       .unwrap()
       .catch(() => undefined);
-  }
+  };
 
-  async function handleMarkAllRead() {
+  const handleMarkAllRead = async () => {
     await markAllNotificationsRead()
       .unwrap()
       .catch(() => undefined);
-  }
+  };
 
   return (
     <div className="relative">
@@ -69,7 +69,6 @@ export function NotificationBell() {
 
       {isOpen && (
         <>
-          {/* Click-anywhere-to-close backdrop, same pattern as the account menu. */}
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
           <div className="absolute right-0 z-20 mt-1 w-80 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface shadow-lg">
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
@@ -94,7 +93,9 @@ export function NotificationBell() {
                 <ul className="flex flex-col gap-0.5">
                   {notifications.map((notification) => (
                     <li key={notification.id}>
-                      {/* Spans, not divs: a <button> may only contain phrasing content. */}
+                      {/* NOTE: spans, not divs. A <button> may only contain
+                          phrasing content, and a div inside one is invalid HTML
+                          that browsers recover from unpredictably. */}
                       <button
                         type="button"
                         onClick={() => handleRead(notification)}
@@ -124,7 +125,7 @@ export function NotificationBell() {
                               {formatRelativeTime(notification.createdAt)}
                             </span>
                           </span>
-                          <span className="mt-0.5 block whitespace-pre-wrap break-words text-xs text-muted">
+                          <span className="mt-0.5 block whitespace-pre-wrap wrap-break-word text-xs text-muted">
                             {notification.body}
                           </span>
                         </span>
@@ -139,4 +140,4 @@ export function NotificationBell() {
       )}
     </div>
   );
-}
+};

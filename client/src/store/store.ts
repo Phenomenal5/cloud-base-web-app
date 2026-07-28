@@ -2,10 +2,8 @@ import { configureStore } from "@reduxjs/toolkit";
 import { api } from "./api";
 import authReducer from "./authSlice";
 
-// ─── Store factory ────────────────────────────────────
-// A fresh store per client (created once in StoreProvider). Server state lives in
-// the RTK Query cache; local state (auth mirror) in plain slices.
-
+// A factory rather than a module-level store, so each client gets a fresh one.
+// Server state lives in the RTK Query cache; local state goes in plain slices.
 export const makeStore = () =>
   configureStore({
     reducer: {
@@ -14,9 +12,9 @@ export const makeStore = () =>
     },
     middleware: (getDefault) =>
       getDefault({
-        // Dev-only checks deep-walk the whole state on every action. Skip RTK
-        // Query's cache (immutable + serializable by construction) so a large
-        // cache doesn't slow dev; our own slices are still checked.
+        // These dev checks deep-walk the whole state on every action. The RTK
+        // Query cache is immutable and serializable by construction, so skipping
+        // it keeps dev fast on a large cache. Our own slices are still checked.
         immutableCheck: { ignoredPaths: [api.reducerPath] },
         serializableCheck: { ignoredPaths: [api.reducerPath] },
       }).concat(api.middleware),

@@ -1,12 +1,10 @@
 import type { Response } from "express";
 import { env } from "../config/env.js";
 
-// ─── Auth cookies ─────────────────────────────────────
-//
-// Tokens ride in httpOnly cookies so no JWT is ever exposed to client-side JS
-// (house convention). In production the client (Vercel) and API (Render) are on
-// different sites, so cross-site cookies need SameSite=None + Secure. In dev
-// they're same-site on localhost, so Lax works over plain http.
+// Tokens ride in httpOnly cookies so no JWT is ever readable from client JS.
+// In production the client and API are on different sites, which needs
+// SameSite=None + Secure; in dev they're both on localhost, so Lax works
+// over plain http.
 
 export const COOKIE_NAMES = {
   ACCESS: "accessToken",
@@ -37,8 +35,8 @@ export function setAuthCookies(
 }
 
 export function clearAuthCookies(res: Response): void {
-  // Options (path/sameSite/secure) must match how the cookies were set, or the
-  // browser won't clear them.
+  // NOTE: the options have to match how the cookies were set or the browser
+  // won't clear them.
   res.clearCookie(COOKIE_NAMES.ACCESS, baseOptions());
   res.clearCookie(COOKIE_NAMES.REFRESH, baseOptions());
 }

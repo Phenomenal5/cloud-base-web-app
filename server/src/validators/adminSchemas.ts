@@ -1,7 +1,5 @@
 import * as yup from "yup";
 
-// ─── Admin request schemas (Yup) ──────────────────────
-
 export const updateRoleSchema = yup.object({
   role: yup
     .string()

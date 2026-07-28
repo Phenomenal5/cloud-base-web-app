@@ -3,16 +3,12 @@ import { logger } from "../config/logger.js";
 import { parseAsrsCsv } from "../utils/asrsCsv.js";
 import { ingestReports } from "./ingestionService.js";
 
-// ─── Ingestion job service ────────────────────────────
-//
-// The worker's job handler: load the job, ingest its CSV, and record progress +
-// final status. Kept separate from the queue wiring so it's unit-testable and
-// callable directly.
-
+// The worker's job handler. Kept separate from the queue wiring so it can be
+// called directly and tested without pg-boss.
 export async function processIngestionJob(jobId: string): Promise<void> {
   const job = await prisma.ingestionJob.findUnique({ where: { id: jobId } });
   if (!job) {
-    logger.warn(`Ingestion job ${jobId} not found — skipping.`);
+    logger.warn(`Ingestion job ${jobId} not found, skipping.`);
     return;
   }
 
@@ -22,8 +18,7 @@ export async function processIngestionJob(jobId: string): Promise<void> {
   });
 
   try {
-    const records = parseAsrsCsv(job.sourceCsv);
-    const result = await ingestReports(records);
+    const result = await ingestReports(parseAsrsCsv(job.sourceCsv));
 
     await prisma.ingestionJob.update({
       where: { id: jobId },
@@ -35,7 +30,7 @@ export async function processIngestionJob(jobId: string): Promise<void> {
       },
     });
     logger.info(
-      `Ingestion job ${jobId} complete — ${result.reports} report(s), ${result.chunks} chunk(s).`,
+      `Ingestion job ${jobId} complete: ${result.reports} report(s), ${result.chunks} chunk(s).`,
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

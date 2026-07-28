@@ -14,10 +14,13 @@ import { cn } from '@/lib/cn'
 
 const ROLES: Role[] = ['TRAINEE', 'ANALYST', 'ADMIN']
 
-const SELECT_CLASS =
+const FIELD_CLASS =
   'rounded-lg border border-border bg-surface px-2 py-1.5 text-sm outline-none focus:border-brand'
 
-export function UsersPage() {
+const PAGER_BUTTON_CLASS =
+  'rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40'
+
+export const UsersPage = () => {
   const currentUser = useAppSelector((state) => state.auth.user)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<Role | ''>('')
@@ -34,21 +37,21 @@ export function UsersPage() {
   const [updateRole] = useUpdateUserRoleMutation()
   const [updateStatus] = useUpdateUserStatusMutation()
 
-  async function handleRoleChange(id: string, role: Role) {
+  const handleRoleChange = async (id: string, role: Role) => {
     try {
       await updateRole({ id, role }).unwrap()
       toast.success(`Role updated to ${role}`)
-    } catch (roleError) {
-      toast.error(getApiErrorMessage(roleError))
+    } catch (error) {
+      toast.error(getApiErrorMessage(error))
     }
   }
 
-  async function handleStatusChange(id: string, status: UserStatus) {
+  const handleStatusChange = async (id: string, status: UserStatus) => {
     try {
       await updateStatus({ id, status }).unwrap()
       toast.success(status === 'BLOCKED' ? 'User blocked' : 'User unblocked')
-    } catch (statusError) {
-      toast.error(getApiErrorMessage(statusError))
+    } catch (error) {
+      toast.error(getApiErrorMessage(error))
     }
   }
 
@@ -57,6 +60,8 @@ export function UsersPage() {
       <h1 className='text-xl font-semibold'>Users</h1>
       <p className='mt-1 text-sm text-muted'>Manage roles and account access.</p>
 
+      {/* Every filter change resets to page 1: page 4 of the old result set
+          usually doesn't exist in the new one. */}
       <div className='mt-5 flex flex-wrap gap-2'>
         <input
           value={searchTerm}
@@ -65,7 +70,7 @@ export function UsersPage() {
             setPage(1)
           }}
           placeholder='Search name or email'
-          className={cn(SELECT_CLASS, 'min-w-56 flex-1')}
+          className={cn(FIELD_CLASS, 'min-w-56 flex-1')}
         />
         <select
           value={roleFilter}
@@ -73,7 +78,7 @@ export function UsersPage() {
             setRoleFilter(event.target.value as Role | '')
             setPage(1)
           }}
-          className={SELECT_CLASS}
+          className={FIELD_CLASS}
         >
           <option value=''>All roles</option>
           {ROLES.map((role) => (
@@ -88,7 +93,7 @@ export function UsersPage() {
             setStatusFilter(event.target.value as UserStatus | '')
             setPage(1)
           }}
-          className={SELECT_CLASS}
+          className={FIELD_CLASS}
         >
           <option value=''>All statuses</option>
           <option value='ACTIVE'>Active</option>
@@ -115,7 +120,9 @@ export function UsersPage() {
             </thead>
             <tbody className='divide-y divide-border'>
               {data.users.map((user) => {
+                // The API rejects self-edits too; this just avoids offering it.
                 const isSelf = user.id === currentUser?.id
+
                 return (
                   <tr key={user.id}>
                     <td className='px-4 py-2'>
@@ -183,8 +190,8 @@ export function UsersPage() {
           <button
             type='button'
             disabled={page <= 1}
-            onClick={() => setPage((previous) => previous - 1)}
-            className='rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40'
+            onClick={() => setPage((current) => current - 1)}
+            className={PAGER_BUTTON_CLASS}
           >
             Prev
           </button>
@@ -194,8 +201,8 @@ export function UsersPage() {
           <button
             type='button'
             disabled={page >= data.pages}
-            onClick={() => setPage((previous) => previous + 1)}
-            className='rounded-lg border border-border px-3 py-1.5 transition hover:bg-surface-2 disabled:opacity-40'
+            onClick={() => setPage((current) => current + 1)}
+            className={PAGER_BUTTON_CLASS}
           >
             Next
           </button>

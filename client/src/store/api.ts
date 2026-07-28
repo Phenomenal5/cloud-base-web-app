@@ -12,16 +12,14 @@ import type {
 import { axiosBaseQuery, type AxiosQueryArgs, type AxiosQueryError } from "./axiosBaseQuery";
 import { clearUser, setUser } from "./authSlice";
 
-// ─── The app's single HTTP client (RTK Query over axios) ──
-//
-// Transport is axios (withCredentials sends the httpOnly auth cookies — no JWT
-// ever touches JS). On a 401 for a protected route, we rotate the session via
-// /auth/refresh once and retry; if that fails, the user is cleared (CLAUDE.md §2).
+// The app's one HTTP client. On a 401 for a protected route we rotate the
+// session through /auth/refresh once and retry; if that fails, the user is
+// cleared and treated as a guest.
 
 const rawBaseQuery = axiosBaseQuery();
 
-// Single-flight guard: concurrent 401s share ONE refresh so they don't race the
-// rotating refresh token (a second refresh would invalidate the first).
+// NOTE: concurrent 401s must share a single refresh. The refresh token rotates,
+// so a second parallel refresh would invalidate the first one's result.
 let refreshPromise: ReturnType<typeof rawBaseQuery> | null = null;
 
 const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQueryError> = async (
@@ -32,7 +30,8 @@ const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQu
   let result = await rawBaseQuery(queryArgs, baseQueryApi, extraOptions);
 
   const requestUrl = typeof queryArgs === "string" ? queryArgs : queryArgs.url;
-  const isAuthRoute = requestUrl.startsWith("/auth/"); // don't reauth login/refresh failures
+  // A failed login or refresh must not trigger another refresh.
+  const isAuthRoute = requestUrl.startsWith("/auth/");
 
   if (result.error?.status === 401 && !isAuthRoute) {
     if (!refreshPromise) {
@@ -46,7 +45,7 @@ const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQu
     refreshPromise = null;
 
     if (refreshResult.data) {
-      result = await rawBaseQuery(queryArgs, baseQueryApi, extraOptions); // retry original
+      result = await rawBaseQuery(queryArgs, baseQueryApi, extraOptions);
     } else {
       baseQueryApi.dispatch(clearUser());
     }
@@ -74,14 +73,15 @@ export const api = createApi({
     login: builder.mutation<User, { email: string; password: string }>({
       query: (body) => ({ url: "/auth/login", method: "POST", body }),
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
-      // Set auth state the instant login resolves (don't wait on the /auth/me
-      // refetch), so routing straight to /chat renders the signed-in UI with no flicker.
+      // Set auth state as soon as login resolves rather than waiting on the
+      // /auth/me refetch, so routing to /chat renders the signed-in UI without a
+      // flicker of the guest one.
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
           dispatch(setUser(data));
         } catch {
-          // Login failed — the page shows the error toast; nothing to set here.
+          // The page shows the error toast; there's nothing to set here.
         }
       },
       invalidatesTags: [{ type: "User", id: "ME" }],
@@ -97,13 +97,13 @@ export const api = createApi({
     verifyEmail: builder.mutation<User, { email: string; code: string }>({
       query: (body) => ({ url: "/auth/verify-email", method: "POST", body }),
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
-      // Verifying the code also signs the user in — set auth state immediately.
+      // Verifying the code also signs the user in, so set auth state here too.
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
           dispatch(setUser(data));
         } catch {
-          // Verification failed — the page shows the error toast.
+          // The page shows the error toast.
         }
       },
       invalidatesTags: [{ type: "User", id: "ME" }],
@@ -139,7 +139,7 @@ export const api = createApi({
       }),
       transformResponse: (response: ApiEnvelope<{ conversations: ConversationSummary[] }>) =>
         response.data.conversations,
-      // Per-id tags so a single-conversation change only refetches what it must.
+      // Per-id tags, so renaming one conversation doesn't refetch every list.
       providesTags: (conversations) =>
         conversations
           ? [
@@ -200,8 +200,8 @@ export const api = createApi({
     }),
 
     // ── Notifications ──
-    // The feed is read-only to the user; rows are created by an admin broadcast
-    // (POST /admin/notifications), so the only writes here are read-receipts.
+    // Rows are only ever created by an admin broadcast, so the only writes here
+    // are read receipts.
     listNotifications: builder.query<NotificationFeed, void>({
       query: () => "/notifications",
       transformResponse: (response: ApiEnvelope<NotificationFeed>) => response.data,
@@ -221,8 +221,8 @@ export const api = createApi({
         url: `/notifications/${notificationId}/read`,
         method: "PATCH",
       }),
-      // LIST too: the unread count rides along with the feed, so the badge is
-      // stale until the list itself refetches.
+      // LIST as well, because the unread count comes back with the feed, so the
+      // badge stays stale until the list itself refetches.
       invalidatesTags: (_result, _error, notificationId) => [
         { type: "Notification", id: notificationId },
         { type: "Notification", id: "LIST" },

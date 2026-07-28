@@ -10,7 +10,7 @@ import { PasswordInput } from '@/components/ui/PasswordInput'
 import { Button } from '@/components/ui/Button'
 import { ThemeToggle } from '@/components/ThemeToggle'
 
-export function LoginPage() {
+export const LoginPage = () => {
   const navigate = useNavigate()
   const [login, { isLoading }] = useLoginMutation()
   const [logout] = useLogoutMutation()
@@ -18,33 +18,35 @@ export function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  // Enter the app only once auth state has COMMITTED to an admin user. Navigating
-  // imperatively right after login().unwrap() raced the login mutation's setUser
-  // dispatch: navigate('/') would run while status was still 'guest', so
-  // ProtectedRoute bounced straight back to /login and never re-routed (the bug:
-  // "sometimes never routes, I have to reload"). Reacting to committed status
-  // removes the race entirely. Also bounces an already-signed-in admin who lands
-  // back on /login.
+  // NOTE: navigate only once auth state has committed to an admin user. Calling
+  // navigate('/') straight after login().unwrap() raced the mutation's setUser
+  // dispatch: status was still 'guest', so ProtectedRoute bounced straight back
+  // here and never re-routed, which is why sign-in sometimes needed a reload.
+  // Reacting to committed status can't race. This also bounces an already
+  // signed-in admin who lands back on /login.
   useEffect(() => {
     if (status === 'authenticated' && user?.role === 'ADMIN') navigate('/', { replace: true })
   }, [status, user, navigate])
 
-  async function handleSubmit(event: FormEvent) {
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     try {
       const signedIn = await login({ email: email.trim().toLowerCase(), password }).unwrap()
+
+      // Credentials were valid but this isn't an admin, so drop the session we
+      // just created rather than leaving them signed in with nowhere to go.
       if (signedIn.role !== 'ADMIN') {
-        // Not an admin — drop the session we just created.
         await logout()
           .unwrap()
           .catch(() => undefined)
         toast.error('This account is not an administrator.')
         return
       }
+
       toast.success('Signed in')
-      // Navigation is handled by the status effect above once setUser commits.
-    } catch (loginError) {
-      toast.error(getApiErrorMessage(loginError, 'Invalid email or password.'))
+      // The effect above handles navigation once setUser commits.
+    } catch (error) {
+      toast.error(getApiErrorMessage(error, 'Invalid email or password.'))
     }
   }
 

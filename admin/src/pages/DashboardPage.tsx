@@ -10,15 +10,6 @@ import { useMetricsQuery } from '@/store/api'
 import type { AiOperation, JobStatus } from '@/lib/types'
 import { cn } from '@/lib/cn'
 
-function formatNumber(value: number): string {
-  return value.toLocaleString()
-}
-
-function formatOperation(operation: AiOperation): string {
-  const word = operation.toLowerCase()
-  return word.charAt(0).toUpperCase() + word.slice(1)
-}
-
 const JOB_STATUS_TEXT: Record<JobStatus, string> = {
   QUEUED: 'text-slate-600 dark:text-slate-300',
   PROCESSING: 'text-sky-600 dark:text-sky-400',
@@ -26,30 +17,35 @@ const JOB_STATUS_TEXT: Record<JobStatus, string> = {
   FAILED: 'text-rose-600 dark:text-rose-400',
 }
 
-function StatCard({
-  label,
-  value,
-  hint,
-  icon: Icon,
-}: {
+const CARD_CLASS = 'rounded-xl border border-border bg-surface p-4'
+
+const formatNumber = (value: number): string => value.toLocaleString()
+
+// EMBEDDING -> "Embedding"
+const formatOperation = (operation: AiOperation): string => {
+  const word = operation.toLowerCase()
+  return word.charAt(0).toUpperCase() + word.slice(1)
+}
+
+interface StatCardProps {
   label: string
   value: string
   hint?: string
   icon: LucideIcon
-}) {
-  return (
-    <div className='rounded-xl border border-border bg-surface p-4'>
-      <div className='flex items-center gap-2 text-muted'>
-        <Icon className='h-4 w-4' />
-        <p className='text-xs font-medium'>{label}</p>
-      </div>
-      <p className='mt-2 text-2xl font-semibold'>{value}</p>
-      {hint && <p className='mt-0.5 text-xs text-muted'>{hint}</p>}
-    </div>
-  )
 }
 
-export function DashboardPage() {
+const StatCard = ({ label, value, hint, icon: Icon }: StatCardProps) => (
+  <div className={CARD_CLASS}>
+    <div className='flex items-center gap-2 text-muted'>
+      <Icon className='h-4 w-4' />
+      <p className='text-xs font-medium'>{label}</p>
+    </div>
+    <p className='mt-2 text-2xl font-semibold'>{value}</p>
+    {hint && <p className='mt-0.5 text-xs text-muted'>{hint}</p>}
+  </div>
+)
+
+export const DashboardPage = () => {
   const { data: metrics, isLoading } = useMetricsQuery()
 
   if (isLoading || !metrics) {
@@ -87,6 +83,8 @@ export function DashboardPage() {
           icon={Cpu}
           label='Tokens used'
           value={formatNumber(metrics.tokens.total)}
+          // Zero almost always means the dev fallbacks are running, not that
+          // nobody has asked anything.
           hint={
             metrics.tokens.total === 0
               ? 'set an OpenAI key to track'
@@ -96,7 +94,7 @@ export function DashboardPage() {
       </div>
 
       <div className='mt-6 grid gap-6 lg:grid-cols-2'>
-        <section className='rounded-xl border border-border bg-surface p-4'>
+        <section className={CARD_CLASS}>
           <h2 className='text-sm font-semibold'>Ingestion jobs</h2>
           <p className='mt-0.5 text-xs text-muted'>
             {metrics.jobs.total} total · {formatNumber(metrics.jobs.reportsIngested)} reports
@@ -112,7 +110,7 @@ export function DashboardPage() {
           </ul>
         </section>
 
-        <section className='rounded-xl border border-border bg-surface p-4'>
+        <section className={CARD_CLASS}>
           <h2 className='text-sm font-semibold'>Token usage by operation</h2>
           <ul className='mt-3 flex flex-col gap-1.5 text-sm'>
             {(Object.keys(metrics.tokens.byOperation) as AiOperation[]).map((operation) => (
@@ -127,7 +125,7 @@ export function DashboardPage() {
         </section>
       </div>
 
-      <section className='mt-6 rounded-xl border border-border bg-surface p-4'>
+      <section className={cn(CARD_CLASS, 'mt-6')}>
         <h2 className='text-sm font-semibold'>Recent signups</h2>
         {metrics.recentSignups.length === 0 ? (
           <p className='mt-2 text-sm text-muted'>No users yet.</p>

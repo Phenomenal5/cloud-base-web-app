@@ -2,8 +2,6 @@ import { Router } from "express";
 import { getReport, listReports } from "../controllers/reportController.js";
 import { protect, authorize } from "../middlewares/auth.js";
 
-// ─── /api/reports ─────────────────────────────────────
-
 const router = Router();
 
 /**
@@ -52,7 +50,7 @@ router.get("/", protect, authorize("ANALYST", "ADMIN"), listReports);
  *   get:
  *     tags: [Reports]
  *     summary: Report detail with a lazily generated, cached plain-language summary
- *     description: Any signed-in user (summaries aren't for guests, PRD §5.1).
+ *     description: Any signed-in user. Summaries are not available to guests.
  *     parameters:
  *       - in: path
  *         name: id

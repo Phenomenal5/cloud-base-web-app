@@ -5,7 +5,7 @@ import { summarizeReport } from "../services/summarizationService.js";
 import { CATEGORIES, SEVERITIES } from "../services/classificationService.js";
 import type { Category, Severity } from "../generated/prisma/enums.js";
 
-// Fields safe to return for a report (never the raw embedding).
+// Everything except the raw embedding.
 const REPORT_SELECT = {
   id: true,
   acn: true,
@@ -19,9 +19,12 @@ const REPORT_SELECT = {
   createdAt: true,
 } as const;
 
+const DEFAULT_LIMIT = 20;
+const MAX_LIMIT = 100;
+
 // ─── GET /api/reports/:id ─────────────────────────────
-// Full report incl. category/severity, plus a plain-language summary generated
-// lazily and cached (FR-19, §8.5). Any signed-in user (summaries aren't for guests).
+// Any signed-in user. The plain-language summary is generated on first view and
+// cached on the row, so the LLM is never asked for the same one twice.
 export const getReport = catchAsync(async (req, res) => {
   const id = req.params.id as string;
   const report = await prisma.report.findUnique({ where: { id }, select: REPORT_SELECT });
@@ -36,16 +39,15 @@ export const getReport = catchAsync(async (req, res) => {
   res.status(200).json({ data: { report: { ...report, summary } } });
 });
 
-// ─── GET /api/reports (Analyst triage) ────────────────
-// Paginated, filterable list by category / severity / date range (FR analyst).
-// ANALYST + ADMIN only (enforced by the route's authorize()).
+// ─── GET /api/reports (analyst triage) ────────────────
+// ANALYST and ADMIN only, enforced on the route.
 export const listReports = catchAsync(async (req, res) => {
-  // Parse + clamp pagination (house convention).
   const page = Math.max(1, Number(req.query.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
   const skip = (page - 1) * limit;
 
-  // Only apply filters that are valid enum values / dates.
+  // Only apply filters that are actually valid, so a bad param narrows nothing
+  // rather than erroring.
   const categoryParam = req.query.category as string | undefined;
   const severityParam = req.query.severity as string | undefined;
   const category = CATEGORIES.includes(categoryParam as Category)
@@ -57,14 +59,14 @@ export const listReports = catchAsync(async (req, res) => {
 
   const from = req.query.from ? new Date(req.query.from as string) : undefined;
   const to = req.query.to ? new Date(req.query.to as string) : undefined;
-  const dateFilter: Record<string, Date> = {};
-  if (from && !Number.isNaN(from.getTime())) dateFilter.gte = from;
-  if (to && !Number.isNaN(to.getTime())) dateFilter.lte = to;
+  const reportDate: Record<string, Date> = {};
+  if (from && !Number.isNaN(from.getTime())) reportDate.gte = from;
+  if (to && !Number.isNaN(to.getTime())) reportDate.lte = to;
 
   const where = {
     ...(category ? { category } : {}),
     ...(severity ? { severity } : {}),
-    ...(Object.keys(dateFilter).length ? { reportDate: dateFilter } : {}),
+    ...(Object.keys(reportDate).length ? { reportDate } : {}),
   };
 
   const [reports, total] = await prisma.$transaction([

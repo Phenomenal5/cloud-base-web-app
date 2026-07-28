@@ -12,17 +12,12 @@ import reportRoutes from "./reportRoutes.js";
 import adminRoutes from "./adminRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
 
-// ─── API router ───────────────────────────────────────
-//
-// Aggregates all feature routers under /api. Feature routers (auth, search,
-// conversations, admin…) are mounted here as they're built — keeping this the
-// single place that maps URL prefixes to routers.
+// The single place that maps URL prefixes to feature routers.
 
 const router = Router();
 
-// ── API docs (Swagger UI + raw spec) ──────────────────
-// Interactive docs at /api/docs, machine-readable spec at /api/docs.json.
-// Non-production only — don't publish the full API surface to the internet.
+// Interactive docs at /api/docs, raw spec at /api/docs.json. Non-production only,
+// so we don't publish the whole API surface to the internet.
 if (!env.isProduction) {
   router.use(
     "/docs",
@@ -43,8 +38,8 @@ if (!env.isProduction) {
  *       200:
  *         description: Service healthy and database reachable
  */
-// Health / readiness. `SELECT 1` proves the pool can actually reach Postgres,
-// so this doubles as a DB readiness probe for the host (Render).
+// SELECT 1 proves the pool can actually reach Postgres, so this doubles as the
+// host's readiness probe rather than just saying the process is alive.
 router.get(
   "/health",
   catchAsync(async (_req, res) => {

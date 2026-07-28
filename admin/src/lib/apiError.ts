@@ -1,7 +1,6 @@
-// ─── Extract a user-facing message from an API error ──
-// RTK Query mutations reject with the axios baseQuery shape { status, data };
-// backend errors are { status, message }.
-
+// RTK Query rejects with the axios baseQuery shape { status, data }, and our API
+// errors are { status, message }. This digs the message out of that, or falls
+// back to something the user can read.
 export function getApiErrorMessage(
   error: unknown,
   fallback = 'Something went wrong. Please try again.',

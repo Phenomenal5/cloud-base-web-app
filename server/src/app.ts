@@ -12,78 +12,70 @@ import { generalLimiter } from "./middlewares/rateLimiter.js";
 import { notFound, globalErrorHandler } from "./middlewares/errorHandler.js";
 import apiRoutes from "./routes/index.js";
 
-// ─── Express app ──────────────────────────────────────
-// Middleware order matters: security & parsing → observability → rate limit →
-// routes → 404 → error handler (which MUST be mounted last).
-
 const app = express();
 
-// Behind Render's proxy in prod so req.ip and secure cookies resolve correctly.
+// Behind Render's proxy in prod, so req.ip and secure cookies resolve correctly.
 if (env.isProduction) app.set("trust proxy", 1);
 
-// ── Security & parsing ────────────────────────────────
+// ─── Security & parsing ───────────────────────────────
+
 app.use(helmet());
+
 app.use(
   cors({
-    // Explicit allowlist. Also allow no-Origin requests (curl, health checks,
-    // server-to-server) — those aren't browser CSRF vectors.
     origin(origin, callback) {
+      // No-Origin requests (curl, health checks, server-to-server) aren't a
+      // browser CSRF vector, so they're allowed through.
       if (!origin || env.corsOrigins.includes(origin)) return callback(null, true);
-      // Don't set CORS headers for disallowed origins (browser blocks) instead
-      // of throwing — avoids noisy 500s from bots hitting the API directly.
-      //
-      // NOTE: log it. A rejected origin fails in the BROWSER with "No
-      // 'Access-Control-Allow-Origin' header is present" and leaves nothing in
-      // the server logs, which makes a misconfigured CORS_ORIGINS on a new
-      // deployment (a fresh Vercel URL, say) maddening to diagnose. Now the
-      // exact origin to add shows up here.
-      logger.warn(
-        `CORS: blocked request from origin "${origin}" — add it to CORS_ORIGINS (currently: ${env.corsOrigins.join(", ") || "none"})`,
-      );
+      // Answer without CORS headers rather than throwing, so bots hitting the API
+      // directly don't fill the logs with 500s. Log the origin though: a blocked
+      // request fails silently in the browser, so without this line a wrong
+      // CORS_ORIGINS on a new deployment is very hard to spot.
+      logger.warn(`CORS blocked origin "${origin}". Allowed: ${env.corsOrigins.join(", ")}`);
       return callback(null, false);
     },
-    credentials: true, // auth will use an httpOnly cookie
+    credentials: true,
   }),
 );
+
 app.use(
   compression({
-    // Never compress SSE — buffering breaks live token streaming (/api/ask).
     filter: (req, res) => {
-      const type = res.getHeader("Content-Type");
-      if (typeof type === "string" && type.includes("text/event-stream")) return false;
+      // Compressing SSE buffers the response and breaks token streaming.
+      const contentType = res.getHeader("Content-Type");
+      if (typeof contentType === "string" && contentType.includes("text/event-stream"))
+        return false;
       return compression.filter(req, res);
     },
   }),
 );
+
 app.use(express.json({ limit: "1mb" }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
-// Passport for Google OAuth (stateless — no sessions). Registers the strategy
-// only if configured; the strategy mints no session, the callback issues our JWT.
+// Google OAuth only. No passport sessions: the callback issues our own JWT.
 configurePassport();
 app.use(passport.initialize());
 
-// ── Observability ─────────────────────────────────────
 app.use(morgan(env.isProduction ? "combined" : "dev", { stream: morganStream }));
 
-// ── Rate limiting (global baseline) ───────────────────
 app.use(generalLimiter);
 
-// ── Static uploads (avatars) ──────────────────────────
-// Served with a cross-origin resource policy so the frontend (a different origin)
-// can display avatar images past helmet's default same-origin CORP.
+// ─── Static uploads (avatars) ─────────────────────────
+// The frontend is on a different origin, so relax helmet's same-origin CORP for
+// these files. maxAge is safe because avatar filenames are random per upload.
 app.use(
   "/uploads",
   express.static(resolve("uploads"), {
+    maxAge: "7d",
     setHeaders: (response) => response.setHeader("Cross-Origin-Resource-Policy", "cross-origin"),
   }),
 );
 
-// ── Routes ────────────────────────────────────────────
 app.use("/api", apiRoutes);
 
-// ── 404 + centralized error handler (LAST) ────────────
+// The error handler must stay last.
 app.use(notFound);
 app.use(globalErrorHandler);
 

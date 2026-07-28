@@ -9,9 +9,8 @@ import { validate } from "../middlewares/validate.js";
 import { uploadAvatar } from "../middlewares/upload.js";
 import { updateProfileSchema } from "../validators/userSchemas.js";
 
-// ─── /api/users ───────────────────────────────────────
-// Profile self-service. Avatar images themselves are served statically from
-// /uploads/avatars/<file> (see app.ts), not from here.
+// Profile self-service. The avatar images themselves are served statically from
+// /uploads/avatars (see app.ts), not from here.
 
 const router = Router();
 

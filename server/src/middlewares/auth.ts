@@ -4,47 +4,6 @@ import { COOKIE_NAMES } from "../utils/cookies.js";
 import AppError from "../utils/AppError.js";
 import type { Role } from "../generated/prisma/enums.js";
 
-// ─── protect: require a valid access token ────────────
-//
-// Reads the access token from the httpOnly cookie (browser clients) or an
-// `Authorization: Bearer` header (tools/tests), verifies it, and attaches
-// `req.user`. Stateless on purpose — no DB hit — so it scales horizontally.
-// NOTE: because it's stateless, a blocked user keeps access until their access
-// token expires (≤15 min). Immediate lock-out is enforced at login/refresh plus
-// refresh-token revocation when an admin blocks the account.
-export function protect(req: Request, _res: Response, next: NextFunction): void {
-  try {
-    const token = extractToken(req);
-    if (!token) throw new AppError("Not authenticated. Please log in.", 401);
-
-    const payload = verifyAccessToken(token);
-    req.user = { id: payload.sub, role: payload.role };
-    next();
-  } catch (error) {
-    // jwt.verify throws JsonWebTokenError / TokenExpiredError → global handler
-    // turns those into 401.
-    next(error);
-  }
-}
-
-// ─── optionalAuth: attach user if present, never reject ──
-//
-// For endpoints open to guests but richer when signed in (e.g. /api/ask, which
-// persists messages for logged-in users but still answers guests). Sets req.user
-// when a valid token is present; silently continues as a guest otherwise.
-export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
-  try {
-    const token = extractToken(req);
-    if (token) {
-      const payload = verifyAccessToken(token);
-      req.user = { id: payload.sub, role: payload.role };
-    }
-  } catch {
-    // Invalid/expired token on an optional route → treat as guest, don't error.
-  }
-  next();
-}
-
 function extractToken(req: Request): string | undefined {
   const fromCookie = req.cookies?.[COOKIE_NAMES.ACCESS];
   if (fromCookie) return fromCookie;
@@ -55,10 +14,46 @@ function extractToken(req: Request): string | undefined {
   return undefined;
 }
 
-// ─── authorize: restrict to specific roles (RBAC, FR-9) ──
+// ─── protect: require a valid access token ────────────
 //
-// Mount AFTER `protect`. NOTE: takes roles as rest args — authorize("ADMIN"),
-// NOT authorize(["ADMIN"]). Returns 403 for an authenticated user lacking a role.
+// Reads the token from the httpOnly cookie (browsers) or a Bearer header (tools
+// and tests). Verification is stateless, with no DB hit, so this scales
+// horizontally. NOTE: the trade-off is that a blocked or demoted user keeps
+// access until their access token expires (15 min by default). Both paths revoke
+// the user's refresh tokens so the lock-out lands on their next refresh.
+export function protect(req: Request, _res: Response, next: NextFunction): void {
+  try {
+    const token = extractToken(req);
+    if (!token) throw new AppError("Not authenticated. Please log in.", 401);
+
+    const payload = verifyAccessToken(token);
+    req.user = { id: payload.sub, role: payload.role };
+    next();
+  } catch (error) {
+    // jwt.verify throws JsonWebTokenError / TokenExpiredError, which the global
+    // handler maps to a 401.
+    next(error);
+  }
+}
+
+// ─── optionalAuth: attach the user if there is one ────
+//
+// For routes open to guests but richer when signed in, such as /api/ask.
+export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
+  try {
+    const token = extractToken(req);
+    if (token) {
+      const payload = verifyAccessToken(token);
+      req.user = { id: payload.sub, role: payload.role };
+    }
+  } catch {
+    // An invalid or expired token here just means "treat them as a guest".
+  }
+  next();
+}
+
+// ─── authorize: role check, mount after protect ───────
+// NOTE: takes roles as rest args, so authorize("ADMIN"), not authorize(["ADMIN"]).
 export const authorize =
   (...roles: Role[]): RequestHandler =>
   (req, _res, next) => {

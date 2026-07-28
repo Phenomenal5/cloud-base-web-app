@@ -2,16 +2,11 @@ import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 
-// ─── Metrics rollup + retention ───────────────────────
-//
-// The admin dashboard's all-time query/token totals come from two ever-growing
-// tables (query_logs, token_usage). To keep those reads cheap and the tables
-// bounded, the worker runs runMetricsMaintenance() nightly:
-//   1. rollUpDailyMetrics() — fold each COMPLETED UTC day into one daily_metrics
-//      row (idempotent upsert), so history survives step 2.
-//   2. pruneOldData() — delete raw rows older than the retention window (already
-//      captured in step 1) plus spent auth tokens.
-// The dashboard then reads: sum(daily_metrics) [history] + today's live rows.
+// The admin dashboard's all-time totals come from two tables that grow forever
+// (query_logs, token_usage). To keep those reads cheap, the worker runs this
+// nightly: fold every completed UTC day into one daily_metrics row, then delete
+// the raw rows past the retention window. The dashboard reads
+// sum(daily_metrics) plus today's live rows.
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -22,8 +17,9 @@ function utcDayStart(date: Date): Date {
 interface QueryDayRow {
   day: string;
   kind: string;
-  n: number;
+  count: number;
 }
+
 interface TokenDayRow {
   day: string;
   operation: string;
@@ -52,19 +48,19 @@ function blankDay(): DayAggregate {
   };
 }
 
-// Re-roll the whole retained window each night rather than tracking a cursor —
-// simpler and idempotent, and cheap because the window is bounded by retention.
-// Only complete days (< today UTC) are rolled; today stays live.
+// Re-rolls the whole retained window each night instead of tracking a cursor.
+// That's simpler and idempotent, and it's cheap because retention bounds the
+// window. Today is left alone; only completed days are rolled.
 export async function rollUpDailyMetrics(): Promise<number> {
   const todayStart = utcDayStart(new Date());
   const windowStart = new Date(todayStart.getTime() - env.metricsRetentionDays * MS_PER_DAY);
 
-  // Grouping by a truncated date needs raw SQL (Prisma groupBy can't date_trunc);
-  // both bounds are bound parameters, and the ::int casts avoid bigint returns.
+  // Grouping by a truncated date needs raw SQL, since Prisma's groupBy can't
+  // date_trunc. The ::int casts stop Postgres returning bigints.
   const queryRows = await prisma.$queryRaw<QueryDayRow[]>`
     SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
-           kind::text AS kind,
-           count(*)::int AS n
+           kind::text                                            AS kind,
+           count(*)::int                                         AS count
     FROM query_logs
     WHERE "createdAt" >= ${windowStart} AND "createdAt" < ${todayStart}
     GROUP BY 1, 2
@@ -72,10 +68,10 @@ export async function rollUpDailyMetrics(): Promise<number> {
 
   const tokenRows = await prisma.$queryRaw<TokenDayRow[]>`
     SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
-           operation::text AS operation,
-           sum("totalTokens")::int AS total,
-           sum("promptTokens")::int AS prompt,
-           sum("completionTokens")::int AS completion
+           operation::text                                       AS operation,
+           sum("totalTokens")::int                               AS total,
+           sum("promptTokens")::int                              AS prompt,
+           sum("completionTokens")::int                          AS completion
     FROM token_usage
     WHERE "createdAt" >= ${windowStart} AND "createdAt" < ${todayStart}
     GROUP BY 1, 2
@@ -85,10 +81,11 @@ export async function rollUpDailyMetrics(): Promise<number> {
 
   for (const row of queryRows) {
     const aggregate = days.get(row.day) ?? blankDay();
-    if (row.kind === "SEARCH") aggregate.queriesSearch = row.n;
-    else if (row.kind === "ASK") aggregate.queriesAsk = row.n;
+    if (row.kind === "SEARCH") aggregate.queriesSearch = row.count;
+    else if (row.kind === "ASK") aggregate.queriesAsk = row.count;
     days.set(row.day, aggregate);
   }
+
   for (const row of tokenRows) {
     const aggregate = days.get(row.day) ?? blankDay();
     aggregate.tokensTotal += row.total;
@@ -106,11 +103,11 @@ export async function rollUpDailyMetrics(): Promise<number> {
       update: { ...aggregate },
     });
   }
+
   return days.size;
 }
 
-// Delete data past the retention window (raw audit rows) or otherwise spent.
-// query_logs / token_usage older than retention are already in daily_metrics.
+// Everything deleted here is either already captured in daily_metrics or spent.
 export async function pruneOldData(): Promise<void> {
   const now = new Date();
   const retentionCutoff = new Date(now.getTime() - env.metricsRetentionDays * MS_PER_DAY);
@@ -120,9 +117,6 @@ export async function pruneOldData(): Promise<void> {
     prisma.tokenUsage.deleteMany({ where: { createdAt: { lt: retentionCutoff } } }),
   ]);
 
-  // Spent/expired auth artifacts — single-use or dead, no history to keep. Only
-  // EXPIRED refresh tokens are removed (not merely revoked), leaving room for a
-  // future reuse-detection grace window.
   await Promise.all([
     prisma.emailVerificationToken.deleteMany({
       where: { OR: [{ consumedAt: { not: null } }, { expiresAt: { lt: now } }] },
@@ -130,16 +124,18 @@ export async function pruneOldData(): Promise<void> {
     prisma.passwordResetToken.deleteMany({
       where: { OR: [{ consumedAt: { not: null } }, { expiresAt: { lt: now } }] },
     }),
+    // NOTE: only expired refresh tokens, not merely revoked ones. Keeping revoked
+    // rows around is what would let us detect a replayed token later.
     prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: now } } }),
   ]);
 
   logger.info(
-    `Metrics prune: removed ${queryLogs.count} query logs and ${tokenUsage.count} token rows older than ${env.metricsRetentionDays}d.`,
+    `Pruned ${queryLogs.count} query log(s) and ${tokenUsage.count} token row(s) older than ${env.metricsRetentionDays}d.`,
   );
 }
 
 export async function runMetricsMaintenance(): Promise<void> {
   const rolledDays = await rollUpDailyMetrics();
   await pruneOldData();
-  logger.info(`Metrics maintenance complete — rolled up ${rolledDays} day(s).`);
+  logger.info(`Metrics maintenance complete, rolled up ${rolledDays} day(s).`);
 }

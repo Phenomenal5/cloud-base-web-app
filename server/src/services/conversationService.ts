@@ -3,23 +3,24 @@ import AppError from "../utils/AppError.js";
 import type { MessageRole } from "../generated/prisma/enums.js";
 import type { ConversationTurn } from "./llmService.js";
 
-// ─── Conversation service ─────────────────────────────
-//
-// Ownership-checked helpers for conversations + messages. Every read/write is
-// scoped to a userId so one user can never touch another's threads.
+// Every read and write here is scoped to a userId, so one user can never reach
+// another's threads.
 
-// Derive a title from the first user message (FR-26). Cheap and deterministic;
-// an LLM-generated title is a future nicety.
+const MAX_TITLE_LENGTH = 60;
+
+// Derived from the first message. Cheap and deterministic; an LLM-generated
+// title would be nicer but isn't worth a call per conversation.
 export function titleFromMessage(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
-  return clean.length <= 60 ? clean : `${clean.slice(0, 57)}…`;
+  return clean.length <= MAX_TITLE_LENGTH ? clean : `${clean.slice(0, MAX_TITLE_LENGTH - 3)}…`;
 }
 
 export async function createConversation(userId: string, title: string) {
   return prisma.conversation.create({ data: { userId, title } });
 }
 
-// Fetch a conversation the user owns, or throw 404 (don't reveal others exist).
+// 404 rather than 403, so this doesn't confirm that someone else's conversation
+// exists.
 export async function getOwnedConversation(userId: string, conversationId: string) {
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, userId },
@@ -42,7 +43,7 @@ export async function addMessage(
       citations: citations === undefined ? undefined : (citations as object),
     },
   });
-  // Bump the conversation's updatedAt so lists sort by recent activity.
+  // Bump updatedAt so the sidebar sorts by recent activity.
   await prisma.conversation.update({
     where: { id: conversationId },
     data: { updatedAt: new Date() },
@@ -50,7 +51,7 @@ export async function addMessage(
   return message;
 }
 
-// The last N turns (oldest → newest) for follow-up rewriting / context.
+// The last N turns, oldest first, for follow-up context.
 export async function getRecentTurns(
   conversationId: string,
   limit: number,

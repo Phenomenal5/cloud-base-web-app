@@ -1,11 +1,10 @@
 import * as yup from "yup";
 
-// ─── Auth request schemas (Yup) ───────────────────────
-// Shared shape with the frontend's Formik + Yup forms (house convention).
+// These mirror the frontend's form schemas, so the messages match on both sides.
 
 export const registerSchema = yup.object({
   email: yup.string().trim().lowercase().email("Enter a valid email").required("Email is required"),
-  // Capped at 72 — bcrypt ignores bytes past that (see utils/password.ts).
+  // Capped at 72 because bcrypt ignores anything past that (see utils/password.ts).
   password: yup
     .string()
     .min(8, "Password must be at least 8 characters")
@@ -26,7 +25,6 @@ export const loginSchema = yup.object({
 
 export const verifyEmailSchema = yup.object({
   email: yup.string().trim().lowercase().email("Enter a valid email").required("Email is required"),
-  // Exactly 6 digits — matches the generated code format.
   code: yup
     .string()
     .trim()

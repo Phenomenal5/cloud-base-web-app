@@ -1,8 +1,8 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { User } from '@/lib/types'
 
-// ─── Auth slice ───────────────────────────────────────
-// Mirrors the current user. Synced from /auth/me by AuthProvider; cleared on 401.
+// Mirrors the current user. Filled in from /auth/me by AuthProvider, cleared on
+// a 401 by the api baseQuery.
 
 interface AuthState {
   user: User | null

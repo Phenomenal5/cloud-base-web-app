@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { X, Loader2 } from "lucide-react";
 import { useGetReportQuery } from "@/store/api";
@@ -11,26 +12,44 @@ const SEVERITY_STYLES: Record<string, string> = {
   HIGH: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
 };
 
-function formatCategory(category: string): string {
+const SECTION_HEADING_CLASS = "mb-1 text-xs font-semibold uppercase tracking-wide text-muted";
+
+// HUMAN_FACTORS -> "Human factors"
+const formatCategory = (category: string): string => {
   const words = category.replace(/_/g, " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
-}
+};
 
 interface ReportDetailModalProps {
   reportId: string;
   onClose: () => void;
 }
 
-export function ReportDetailModal({ reportId, onClose }: ReportDetailModalProps) {
+export const ReportDetailModal = ({ reportId, onClose }: ReportDetailModalProps) => {
   const { data: report, isLoading, error } = useGetReportQuery(reportId);
+
+  // Guests can open a source chip from an answer, but the report endpoint needs a
+  // session, so that case gets a sign-in prompt instead of a generic failure.
   const isUnauthorized =
     !!error &&
     typeof error === "object" &&
     "status" in error &&
     (error as { status?: number }).status === 401;
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div
+      role="dialog"
+      aria-modal="true"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative z-10 flex max-h-[85vh] w-full max-w-2xl flex-col rounded-2xl border border-border bg-surface shadow-xl">
         <header className="flex items-center justify-between border-b border-border px-5 py-3">
@@ -86,17 +105,13 @@ export function ReportDetailModal({ reportId, onClose }: ReportDetailModalProps)
 
               {report.summary && (
                 <section>
-                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-                    Plain-language summary
-                  </h3>
+                  <h3 className={SECTION_HEADING_CLASS}>Plain-language summary</h3>
                   <p className="text-sm leading-relaxed">{report.summary}</p>
                 </section>
               )}
 
               <section>
-                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">
-                  Original narrative
-                </h3>
+                <h3 className={SECTION_HEADING_CLASS}>Original narrative</h3>
                 <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted">
                   {report.narrative}
                 </p>
@@ -107,4 +122,4 @@ export function ReportDetailModal({ reportId, onClose }: ReportDetailModalProps)
       </div>
     </div>
   );
-}
+};

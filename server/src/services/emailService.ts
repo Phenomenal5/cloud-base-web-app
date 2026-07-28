@@ -2,24 +2,18 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import AppError from "../utils/AppError.js";
 
-// ─── Email service (Brevo transactional email API) ────
-//
 // Sends over Brevo's HTTPS API rather than their SMTP relay.
 //
-// NOTE: this used to go through nodemailer → smtp-relay.brevo.com:587. Most PaaS
-// hosts (Railway, Render, Fly, Heroku) block outbound SMTP ports to fight spam,
-// so those sends just hang until they time out. HTTPS on 443 is never blocked,
-// which is why the API is the right transport for a deployed app.
+// NOTE: this used to go through nodemailer to smtp-relay.brevo.com:587. Most PaaS
+// hosts block outbound SMTP ports to fight spam, so those sends just hang until
+// they time out. Port 443 is never blocked.
 //
-// NOTE: BREVO_API_KEY is the v3 API key (dashboard → SMTP & API → API Keys), the
-// one starting `xkeysib-`. It is NOT the "SMTP key" the old transport used —
-// they're issued separately and are not interchangeable.
-//
-// EMAIL_FROM must be a sender you've verified in Brevo. An unverified sender is
-// the most common cause of a 400 back from this endpoint.
+// NOTE: BREVO_API_KEY is the v3 API key (dashboard, SMTP & API, API Keys), the
+// one starting `xkeysib-`. It is not the "SMTP key" the old transport used;
+// they're separate credentials. EMAIL_FROM must also be a sender verified in
+// Brevo, which is the usual cause of a 400 back from this endpoint.
 
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
-// Don't let a slow provider hold a registration request open indefinitely.
 const REQUEST_TIMEOUT_MS = 10_000;
 
 const isEmailConfigured = Boolean(env.brevoApiKey);
@@ -33,15 +27,13 @@ interface EmailMessage {
 
 async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<void> {
   if (!isEmailConfigured) {
-    // NEVER log a code in production — the message body contains verification /
-    // reset codes. In prod, a missing key is a hard misconfig, not a fallback.
-    // (validateEnv makes BREVO_API_KEY prod-required — defense in depth.)
+    // NOTE: never log the body in production, it contains verification and reset
+    // codes. In prod a missing key is a misconfiguration, not a fallback, and
+    // env validation already makes it required there.
     if (env.isProduction) {
-      logger.error("BREVO_API_KEY is not set — refusing to send email.");
+      logger.error("BREVO_API_KEY is not set, refusing to send email.");
       throw new AppError("Email service is not configured.", 500);
     }
-    // Dev fallback: surface the content (incl. any code) in the logs so the
-    // verification flow is fully testable without a provider account.
     logger.warn(`[email:dev] To ${to} | ${subject}\n${text}`);
     return;
   }
@@ -62,60 +54,148 @@ async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<voi
         htmlContent: html,
         textContent: text,
       }),
+      // Otherwise a slow provider holds the registration request open.
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
-    // Network failure or the timeout above firing.
     logger.error(`Brevo request failed: ${error instanceof Error ? error.message : String(error)}`);
     throw new AppError("Failed to send email. Please try again shortly.", 502);
   }
 
   if (!response.ok) {
-    // Brevo returns { code, message } on failure — log it verbatim. It names the
-    // actual problem ("sender not valid", "unauthorized"), which is the whole
-    // difference between a five-minute fix and an afternoon of guessing.
+    // Brevo returns { code, message } naming the actual problem ("sender not
+    // valid", "unauthorized"), so log it verbatim.
     const detail = await response.text().catch(() => "<unreadable body>");
     logger.error(`Brevo rejected the send (HTTP ${response.status}): ${detail}`);
     throw new AppError("Failed to send email. Please try again shortly.", 502);
   }
 }
 
-// ─── Verification code email ──────────────────────────
+// ─── Branding ─────────────────────────────────────────
+//
+// These mirror the light palette in client/src/app/globals.css. They're
+// duplicated rather than imported because the frontend's CSS variables aren't
+// reachable from the API, and mail clients wouldn't resolve var() anyway.
+//
+// NOTE: mail clients also strip <style> blocks and ignore class-based dark mode,
+// so everything below is inline styles on nested tables. That's dated markup for
+// the web, but it's what renders consistently in Outlook and Gmail.
+const BRAND = {
+  background: "#f1f5f9",
+  surface: "#ffffff",
+  surfaceMuted: "#f1f5f9",
+  foreground: "#0f172a",
+  muted: "#64748b",
+  border: "#e2e8f0",
+  primary: "#1d4ed8",
+  onPrimary: "#ffffff",
+} as const;
+
+const FONT_STACK =
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+
+interface CodeEmailOptions {
+  heading: string;
+  lead: string;
+  code: string;
+  minutes: number;
+  // Shown in the inbox preview line, next to the subject.
+  preheader: string;
+}
+
+function codeEmailHtml({ heading, lead, code, minutes, preheader }: CodeEmailOptions): string {
+  return `<!doctype html>
+<html lang="en">
+  <body style="margin:0;padding:0;background-color:${BRAND.background};">
+    <!-- Hidden, but mail clients show it as the inbox preview line. -->
+    <div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>
+
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+           style="background-color:${BRAND.background};padding:32px 16px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                 style="max-width:480px;background-color:${BRAND.surface};border:1px solid ${BRAND.border};border-radius:16px;overflow:hidden;">
+
+            <!-- Brand bar -->
+            <tr>
+              <td style="background-color:${BRAND.primary};padding:20px 32px;">
+                <span style="font-family:${FONT_STACK};font-size:18px;font-weight:600;color:${BRAND.onPrimary};letter-spacing:-0.2px;">
+                  Nasight
+                </span>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="padding:32px;font-family:${FONT_STACK};">
+                <h1 style="margin:0 0 8px;font-size:20px;font-weight:600;color:${BRAND.foreground};">
+                  ${heading}
+                </h1>
+                <p style="margin:0 0 24px;font-size:15px;line-height:1.6;color:${BRAND.muted};">
+                  ${lead}
+                </p>
+
+                <!-- The code itself, the one thing they came for. -->
+                <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center"
+                        style="background-color:${BRAND.surfaceMuted};border:1px solid ${BRAND.border};border-radius:12px;padding:20px;">
+                      <span style="font-family:${FONT_STACK};font-size:32px;font-weight:700;letter-spacing:10px;color:${BRAND.primary};">
+                        ${code}
+                      </span>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin:24px 0 0;font-size:13px;line-height:1.6;color:${BRAND.muted};">
+                  This code expires in ${minutes} minutes and can only be used once.
+                  If you didn't request it, you can safely ignore this email.
+                </p>
+              </td>
+            </tr>
+
+            <tr>
+              <td style="border-top:1px solid ${BRAND.border};padding:16px 32px;
+                         font-family:${FONT_STACK};font-size:12px;color:${BRAND.muted};">
+                Nasight — aviation safety, in plain language.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 export async function sendVerificationCode(to: string, code: string): Promise<void> {
   const minutes = env.verificationCodeTtlMinutes;
-  const subject = "Your Nasight verification code";
-  const text = `Your Nasight verification code is ${code}. It expires in ${minutes} minutes. If you didn't request this, you can ignore this email.`;
-  const html = codeEmailHtml(
-    "Verify your email",
-    "Use this code to finish setting up your Nasight account:",
-    code,
-    minutes,
-  );
-
-  await sendEmail({ to, subject, html, text });
+  await sendEmail({
+    to,
+    subject: "Your Nasight verification code",
+    text: `Your Nasight verification code is ${code}. It expires in ${minutes} minutes. If you didn't request this, you can ignore this email.`,
+    html: codeEmailHtml({
+      heading: "Verify your email",
+      lead: "Use this code to finish setting up your Nasight account.",
+      code,
+      minutes,
+      preheader: `Your verification code is ${code}.`,
+    }),
+  });
 }
 
-// ─── Password reset code email ────────────────────────
 export async function sendPasswordResetCode(to: string, code: string): Promise<void> {
   const minutes = env.passwordResetTtlMinutes;
-  const subject = "Your Nasight password reset code";
-  const text = `Your Nasight password reset code is ${code}. It expires in ${minutes} minutes. If you didn't request a reset, you can safely ignore this email.`;
-  const html = codeEmailHtml(
-    "Reset your password",
-    "Use this code to set a new password:",
-    code,
-    minutes,
-  );
-
-  await sendEmail({ to, subject, html, text });
-}
-
-function codeEmailHtml(heading: string, lead: string, code: string, minutes: number): string {
-  return `
-    <div style="font-family: system-ui, sans-serif; max-width: 480px; margin: auto;">
-      <h2>${heading}</h2>
-      <p>${lead}</p>
-      <p style="font-size: 28px; font-weight: 700; letter-spacing: 6px;">${code}</p>
-      <p style="color: #666;">This code expires in ${minutes} minutes. If you didn't request it, you can ignore this email.</p>
-    </div>`;
+  await sendEmail({
+    to,
+    subject: "Your Nasight password reset code",
+    text: `Your Nasight password reset code is ${code}. It expires in ${minutes} minutes. If you didn't request a reset, you can safely ignore this email.`,
+    html: codeEmailHtml({
+      heading: "Reset your password",
+      lead: "Use this code to set a new password. Resetting will sign you out everywhere.",
+      code,
+      minutes,
+      preheader: `Your password reset code is ${code}.`,
+    }),
+  });
 }

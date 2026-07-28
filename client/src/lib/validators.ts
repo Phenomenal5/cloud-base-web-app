@@ -1,6 +1,6 @@
 import * as yup from "yup";
 
-// ─── Yup schemas (mirror the backend validators) ──────
+// These mirror server/src/validators, so the messages match on both sides.
 
 export const loginSchema = yup.object({
   email: yup.string().trim().lowercase().email("Enter a valid email").required("Email is required"),

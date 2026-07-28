@@ -5,18 +5,14 @@ import { TimerReset, UserPlus } from "lucide-react";
 import type { StreamError } from "@/lib/chatStream";
 import { formatLocalTime, formatTimeUntil } from "@/lib/utils";
 
-// ─── "You're out of questions for today" ──────────────
-//
-// Shown when the daily quota is exhausted. Styled amber rather than red on
-// purpose: nothing has broken, the person has simply used their allowance, and
-// the useful information is WHEN they get it back — so the reset time is the
-// most prominent thing here after the headline.
-
 interface QuotaNoticeProps {
   error: StreamError;
 }
 
-export function QuotaNotice({ error }: QuotaNoticeProps) {
+// Amber rather than red on purpose: nothing has broken, the person has just used
+// their allowance. The useful information is when they get it back, so the reset
+// time leads.
+export const QuotaNotice = ({ error }: QuotaNoticeProps) => {
   const { resetsAt, isGuest } = error;
 
   return (
@@ -62,4 +58,4 @@ export function QuotaNotice({ error }: QuotaNoticeProps) {
       </div>
     </div>
   );
-}
+};

@@ -1,4 +1,4 @@
-// ─── Shared API types (mirror the backend) ────────────
+// These mirror the backend's response shapes.
 
 export type Role = "TRAINEE" | "ANALYST" | "ADMIN";
 export type UserStatus = "ACTIVE" | "BLOCKED";
@@ -95,9 +95,9 @@ export interface ReportFilters {
   page?: number;
 }
 
-// NOTE: named AppNotification, not Notification — `Notification` is a DOM global
-// (the Web Notifications API), so a file that forgot the import would silently
-// type-check against the browser one instead of failing.
+// NOTE: AppNotification, not Notification. `Notification` is a DOM global (the
+// Web Notifications API), so a file that forgot the import would quietly
+// type-check against the browser's one instead of failing.
 export interface AppNotification {
   id: string;
   title: string;
@@ -106,8 +106,8 @@ export interface AppNotification {
   createdAt: string;
 }
 
-// GET /notifications returns the feed and the unread count together, so the bell
-// badge and the list never disagree.
+// The feed and the count come back together, so the bell badge and the list can
+// never disagree.
 export interface NotificationFeed {
   notifications: AppNotification[];
   unread: number;
@@ -118,7 +118,7 @@ export interface Tokens {
   refreshToken: string;
 }
 
-// Standard success envelope from the API: { message?, data }.
+// Every successful API response has this shape.
 export interface ApiEnvelope<T> {
   message?: string;
   data: T;

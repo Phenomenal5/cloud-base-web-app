@@ -1,7 +1,7 @@
 import { useRef, type ChangeEvent } from 'react'
 import { Upload, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { useListIngestionsQuery, useUploadIngestionMutation } from '@/store/api'
+import { api, useListIngestionsQuery, useUploadIngestionMutation } from '@/store/api'
 import { getApiErrorMessage } from '@/lib/apiError'
 import type { JobStatus } from '@/lib/types'
 import { cn } from '@/lib/cn'
@@ -13,27 +13,45 @@ const STATUS_STYLES: Record<JobStatus, string> = {
   FAILED: 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300',
 }
 
-export function IngestionPage() {
+const POLL_INTERVAL_MS = 4000
+
+const isActive = (status: JobStatus) => status === 'QUEUED' || status === 'PROCESSING'
+
+export const IngestionPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadIngestion, { isLoading }] = useUploadIngestionMutation()
 
-  // First fetch runs regardless; poll only while a job is active.
-  const { data: jobs = [] } = useListIngestionsQuery(undefined, { pollingInterval: 4000 })
-  const activeCount = jobs.filter(
-    (job) => job.status === 'QUEUED' || job.status === 'PROCESSING',
-  ).length
+  // Only poll while something is actually running. Once every job has settled the
+  // list can't change on its own, so polling would just be wasted requests.
+  // Uploading invalidates the list tag, which brings the new job in and starts
+  // polling again.
+  //
+  // NOTE: useQueryState reads the cache without firing its own request, which is
+  // what lets the interval below depend on the data it controls.
+  const { data: cachedJobs = [] } = api.endpoints.listIngestions.useQueryState()
+  const hasActiveJob = cachedJobs.some((job) => isActive(job.status))
 
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+  const { data: jobs = [] } = useListIngestionsQuery(undefined, {
+    pollingInterval: hasActiveJob ? POLL_INTERVAL_MS : 0,
+    skipPollingIfUnfocused: true,
+  })
+
+  const activeCount = jobs.filter((job) => isActive(job.status)).length
+
+  const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+
     const formData = new FormData()
     formData.append('file', file)
+
     try {
       const job = await uploadIngestion(formData).unwrap()
       toast.success(`Queued ${job.totalRows} report(s) from ${job.filename}`)
-    } catch (uploadError) {
-      toast.error(getApiErrorMessage(uploadError))
+    } catch (error) {
+      toast.error(getApiErrorMessage(error))
     } finally {
+      // Reset the input, or picking the same file again fires no change event.
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
@@ -59,6 +77,7 @@ export function IngestionPage() {
           )}
           Upload CSV
         </button>
+        {/* The real input is hidden; the styled button above triggers it. */}
         <input
           ref={fileInputRef}
           type='file'

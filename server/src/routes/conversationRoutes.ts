@@ -9,8 +9,7 @@ import { protect } from "../middlewares/auth.js";
 import { validate } from "../middlewares/validate.js";
 import { updateConversationSchema } from "../validators/conversationSchemas.js";
 
-// ─── /api/conversations ───────────────────────────────
-// All routes require a signed-in user (conversations are per-user, FR-25).
+// Conversations are per-user, so every route here needs a session.
 
 const router = Router();
 

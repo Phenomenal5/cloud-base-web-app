@@ -5,37 +5,40 @@ import { ArrowUp, TimerReset } from "lucide-react";
 import type { QuotaState } from "@/lib/chatStream";
 import { formatLocalTime, formatTimeUntil } from "@/lib/utils";
 
+const MAX_QUERY_LENGTH = 500;
+
 interface ChatComposerProps {
   onSend: (text: string) => void;
   disabled?: boolean;
   quota?: QuotaState | null;
   // Set once the daily allowance is spent. Locks the box rather than letting
-  // someone type a question that can only fail.
+  // someone type out a question that can only fail.
   exhaustedUntil?: string | null;
 }
 
-export function ChatComposer({ onSend, disabled, quota, exhaustedUntil }: ChatComposerProps) {
+export const ChatComposer = ({ onSend, disabled, quota, exhaustedUntil }: ChatComposerProps) => {
   const [text, setText] = useState("");
-  const isLocked = Boolean(exhaustedUntil) || disabled;
+  const isOutOfQuota = Boolean(exhaustedUntil);
+  const isLocked = isOutOfQuota || disabled;
 
-  function submit() {
+  const submit = () => {
     const trimmed = text.trim();
     if (!trimmed || isLocked) return;
     onSend(trimmed);
     setText("");
-  }
+  };
 
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    // Enter sends; Shift+Enter inserts a newline.
+  const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    // Enter sends, Shift+Enter adds a newline.
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       submit();
     }
-  }
+  };
 
-  // Footer line: reset time when spent, a countdown as it runs low, else the
+  // Reset time when they're out, a running count as it gets low, otherwise the
   // standard grounding note.
-  function footerText() {
+  const footerText = () => {
     if (exhaustedUntil) {
       return `No questions left today — resets ${formatTimeUntil(exhaustedUntil)}, at ${formatLocalTime(exhaustedUntil)}.`;
     }
@@ -46,13 +49,13 @@ export function ChatComposer({ onSend, disabled, quota, exhaustedUntil }: ChatCo
       return `${quota.remaining} of ${quota.limit} questions left today`;
     }
     return "Answers are grounded in NASA ASRS reports.";
-  }
+  };
 
   return (
     <div className="border-t border-border p-3">
       <div
         className={`mx-auto flex max-w-3xl items-end gap-2 rounded-2xl border border-border bg-surface p-2 focus-within:border-brand ${
-          exhaustedUntil ? "opacity-60" : ""
+          isOutOfQuota ? "opacity-60" : ""
         }`}
       >
         <textarea
@@ -60,13 +63,15 @@ export function ChatComposer({ onSend, disabled, quota, exhaustedUntil }: ChatCo
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={Boolean(exhaustedUntil)}
+          // Only the quota disables the box. `disabled` just means a stream is in
+          // flight, and you should still be able to type your next question.
+          disabled={isOutOfQuota}
           placeholder={
-            exhaustedUntil
+            isOutOfQuota
               ? "You've used all your questions for today"
               : "Ask about an aviation safety topic…"
           }
-          maxLength={500}
+          maxLength={MAX_QUERY_LENGTH}
           className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted disabled:cursor-not-allowed"
         />
         <button
@@ -80,9 +85,9 @@ export function ChatComposer({ onSend, disabled, quota, exhaustedUntil }: ChatCo
         </button>
       </div>
       <p className="mt-1.5 flex items-center justify-center gap-1 text-center text-[11px] text-muted">
-        {exhaustedUntil && <TimerReset className="h-3 w-3 shrink-0" />}
+        {isOutOfQuota && <TimerReset className="h-3 w-3 shrink-0" />}
         {footerText()}
       </p>
     </div>
   );
-}
+};

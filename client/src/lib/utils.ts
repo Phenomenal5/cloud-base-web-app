@@ -1,21 +1,21 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 
-// ─── cn: merge Tailwind classes with conditional logic ──
-// House helper — dedupes/merges conflicting Tailwind utilities.
+// Merges Tailwind classes and resolves conflicting utilities.
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// ─── formatRelativeTime: "just now" / "5m ago" / "3d ago" ──
-// Falls back to a short date past a week, where "8d ago" stops being useful.
-// NOTE: reads Date.now() at render time, so only call it from a client component
-// AFTER its data has loaded. Rendering it during SSR would bake the server's
-// clock into the HTML and mismatch on hydration.
+// NOTE: the three formatters below read the clock at render time, so they must
+// only run on the client. Rendering one during SSR bakes the server's clock into
+// the HTML and mismatches on hydration.
+
+// "just now" / "5m ago" / "3d ago", falling back to a short date past a week
+// where "8d ago" stops being useful.
 export function formatRelativeTime(isoTimestamp: string) {
   const timestamp = new Date(isoTimestamp);
-  // Clamp at 0: a row created moments ago can read as the future if the server
-  // clock is slightly ahead of the browser's.
+  // Clamped at 0, because a row created moments ago reads as the future if the
+  // server clock is slightly ahead of the browser's.
   const elapsedSeconds = Math.max(0, Math.round((Date.now() - timestamp.getTime()) / 1000));
 
   if (elapsedSeconds < 60) return "just now";
@@ -32,11 +32,9 @@ export function formatRelativeTime(isoTimestamp: string) {
   return timestamp.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// ─── formatTimeUntil: "in about 4 hours" / "in 25 minutes" ──
-// The forward-looking counterpart to formatRelativeTime, used to tell someone
-// who has hit their daily quota when they get access back. Deliberately vague at
-// the hour scale — "in about 4 hours" is friendlier than "in 3h 47m".
-// NOTE: same SSR caveat as formatRelativeTime — client-side render only.
+// The forward-looking counterpart, for telling someone who has hit their quota
+// when they get access back. Vague on purpose at the hour scale: "in about 4
+// hours" reads better than "in 3h 47m".
 export function formatTimeUntil(isoTimestamp: string) {
   const remainingSeconds = Math.round((new Date(isoTimestamp).getTime() - Date.now()) / 1000);
 
@@ -52,9 +50,8 @@ export function formatTimeUntil(isoTimestamp: string) {
   return `in about ${remainingHours} hour${remainingHours === 1 ? "" : "s"}`;
 }
 
-// The reset instant as a local wall-clock time ("1:00 AM"). The server works in
-// UTC, but telling someone "midnight UTC" is useless if they're in Lagos or
-// Chicago — show it in their own timezone.
+// The server works in UTC, but "midnight UTC" is useless to someone in Lagos or
+// Chicago, so show the reset in their own timezone.
 export function formatLocalTime(isoTimestamp: string) {
   return new Date(isoTimestamp).toLocaleTimeString(undefined, {
     hour: "numeric",

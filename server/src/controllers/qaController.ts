@@ -20,56 +20,75 @@ import {
 import { logQuery } from "../services/queryLogService.js";
 import { clientIp } from "../middlewares/quota.js";
 
-// ─── GET /api/ask?query=…&conversationId=… (SSE) ──────
+const MAX_QUERY_LENGTH = 500;
+const STREAM_FAILURE_MESSAGE = "The answer service is temporarily unavailable. Please try again.";
+
+function logStreamError(error: unknown): void {
+  logger.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
+}
+
+// ─── GET /api/ask (Server-Sent Events) ────────────────
 //
-// Grounded Q&A streamed as Server-Sent Events (FR-22/23/24). Mounted behind
-// optionalAuth: signed-in users get a persisted, multi-turn conversation with
-// follow-up rewriting (FR-28); guests get the same answer, statelessly.
-//
-// Events: meta → sources → token(×N) → done | error.
+// Mounted behind optionalAuth: signed-in users get a persisted, multi-turn
+// conversation, guests get the same answer without one.
+// Events: meta -> sources -> token (xN) -> done | error.
 export const ask = catchAsync(async (req, res) => {
   const raw = req.query.query ?? req.query.q;
   const query = typeof raw === "string" ? raw.trim() : "";
 
-  // Validate up front — thrown before the stream opens → clean JSON error.
+  // Validate before the stream opens, so these come back as clean JSON errors.
   if (!query) throw new AppError("A query is required.", 422);
-  if (query.length > 500) throw new AppError("Query must be at most 500 characters.", 422);
+  if (query.length > MAX_QUERY_LENGTH) {
+    throw new AppError(`Query must be at most ${MAX_QUERY_LENGTH} characters.`, 422);
+  }
 
   const started = Date.now();
-  const conversationIdParam =
+  const requestedConversationId =
     typeof req.query.conversationId === "string" ? req.query.conversationId : undefined;
 
-  // ── Conversation + history (signed-in users only) ──
+  // Stop generating if the browser goes away, so we don't pay for tokens nobody
+  // will read.
+  let clientGone = false;
+  req.on("close", () => {
+    clientGone = true;
+  });
+
+  // ── Conversation and history (signed-in users only) ──
   let conversationId: string | undefined;
   let history: ConversationTurn[] = [];
 
   if (req.user) {
-    if (conversationIdParam) {
-      const conversation = await getOwnedConversation(req.user.id, conversationIdParam); // 404 if not owned
+    if (requestedConversationId) {
+      // Throws 404 if it isn't theirs.
+      const conversation = await getOwnedConversation(req.user.id, requestedConversationId);
       conversationId = conversation.id;
       history = await getRecentTurns(conversationId, env.followupTurns * 2);
     } else {
       const conversation = await createConversation(req.user.id, titleFromMessage(query));
       conversationId = conversation.id;
     }
-    // Persist the user's message now so it survives an SSE drop.
+    // Persist their message now so it survives the stream dropping.
     await addMessage(conversationId, "USER", query);
   }
 
-  // ── Understand the turn: real question (→ search) or small talk (→ chat) ──
-  // One LLM call decides, so greetings/thanks/acknowledgements end the exchange
-  // naturally instead of triggering a grounded answer. This resolves follow-up
-  // references too (FR-28) — it replaces the old rewrite step.
+  // One LLM call decides whether this turn is a real question or small talk, and
+  // resolves follow-up references while it's at it. It replaces what used to be a
+  // separate rewrite step, so it costs nothing extra on a follow-up.
   const resolved = await resolveQuery(history, query);
 
-  // ── Conversational turn → short LLM reply, no retrieval / citations / cost ──
-  // Not logged as a query, so chit-chat doesn't burn the daily quota.
-  if (resolved.mode === "chat") {
-    let clientGone = false;
-    req.on("close", () => {
-      clientGone = true;
-    });
+  // Persist whatever was streamed, even a partial answer.
+  async function persistReply(text: string, citations: Array<{ acn: string; reportId: string }>) {
+    if (!conversationId || !text.trim()) return;
+    try {
+      await addMessage(conversationId, "ASSISTANT", text, citations);
+    } catch (error) {
+      logStreamError(error);
+    }
+  }
 
+  // ── Small talk: reply briefly, no retrieval and no citations ──
+  // Not logged as a query, so a greeting doesn't cost anyone their daily quota.
+  if (resolved.mode === "chat") {
     initSse(res);
     sendEvent(res, "meta", { conversationId, quota: res.locals.quota });
     sendEvent(res, "sources", { count: 0, sources: [] });
@@ -83,39 +102,24 @@ export const ask = catchAsync(async (req, res) => {
       }
       sendEvent(res, "done", { grounded: false, citations: [], conversationId });
     } catch (error) {
-      logger.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
-      sendEvent(res, "error", {
-        message: "The answer service is temporarily unavailable. Please try again.",
-      });
+      logStreamError(error);
+      sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
     } finally {
-      // Persist the assistant reply (even partial, on an SSE drop).
-      if (conversationId && reply.trim()) {
-        try {
-          await addMessage(conversationId, "ASSISTANT", reply, []);
-        } catch (persistError) {
-          logger.error(persistError instanceof Error ? persistError.message : String(persistError));
-        }
-      }
+      await persistReply(reply, []);
       res.end();
     }
     return;
   }
 
   const searchQuery = resolved.query;
+  const rewrittenQuery = searchQuery !== query ? searchQuery : undefined;
 
-  // ── Retrieve BEFORE opening the stream (errors stay clean JSON) ──
+  // Retrieve before opening the stream, so a failure here is still clean JSON.
   const hits = await semanticSearch(searchQuery, env.retrievalTopN, env.retrievalMinSimilarity);
 
   initSse(res);
 
-  // meta: conversationId (so the client can continue the thread) + the rewritten
-  // query when it differs (auditability, PRD §10.4).
-  sendEvent(res, "meta", {
-    conversationId,
-    rewrittenQuery: searchQuery !== query ? searchQuery : undefined,
-    quota: res.locals.quota,
-  });
-
+  sendEvent(res, "meta", { conversationId, rewrittenQuery, quota: res.locals.quota });
   sendEvent(res, "sources", {
     count: hits.length,
     sources: hits.map((hit) => ({
@@ -126,18 +130,19 @@ export const ask = catchAsync(async (req, res) => {
     })),
   });
 
-  // No relevant reports → say so, never fabricate (FR-24).
+  // Nothing relevant in the corpus. Say so rather than let the model invent an
+  // answer with no sources behind it.
   if (hits.length === 0) {
     const message = "I couldn't find any relevant reports in the corpus for that question.";
     sendEvent(res, "token", { text: message });
     sendEvent(res, "done", { grounded: false, citations: [], conversationId });
-    if (conversationId) await addMessage(conversationId, "ASSISTANT", message, []);
+    await persistReply(message, []);
     await logQuery({
       userId: req.user?.id,
       ip: clientIp(req),
       kind: "ASK",
       query,
-      rewrittenQuery: searchQuery !== query ? searchQuery : undefined,
+      rewrittenQuery,
       retrievalCount: 0,
       citedReportIds: [],
       latencyMs: Date.now() - started,
@@ -146,51 +151,36 @@ export const ask = catchAsync(async (req, res) => {
     return;
   }
 
-  // Stop generating if the client disconnects — don't waste LLM tokens.
-  let clientGone = false;
-  req.on("close", () => {
-    clientGone = true;
-  });
-
   const citations = hits.map((hit) => ({ acn: hit.acn, reportId: hit.reportId }));
-  let full = "";
+  let answer = "";
 
   try {
     for await (const chunk of streamGroundedAnswer(searchQuery, hits)) {
       if (clientGone) break;
-      full += chunk;
+      answer += chunk;
       sendEvent(res, "token", { text: chunk });
     }
     sendEvent(res, "done", { grounded: true, citations, conversationId });
   } catch (error) {
-    logger.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
-    sendEvent(res, "error", {
-      message: "The answer service is temporarily unavailable. Please try again.",
-    });
+    logStreamError(error);
+    sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
   } finally {
-    // Persist the assistant message (even partial, on an SSE drop) — PRD §13 risk
-    // mitigation: server-side completion still writes the final message to the DB.
-    if (conversationId && full.trim()) {
-      try {
-        await addMessage(conversationId, "ASSISTANT", full, citations);
-      } catch (persistError) {
-        logger.error(persistError instanceof Error ? persistError.message : String(persistError));
-      }
-    }
-    // Audit + quota counter (FR-33).
+    await persistReply(answer, citations);
+    // The audit trail doubles as the quota counter, so a failure to write it
+    // shouldn't take the response down with it.
     try {
       await logQuery({
         userId: req.user?.id,
         ip: clientIp(req),
         kind: "ASK",
         query,
-        rewrittenQuery: searchQuery !== query ? searchQuery : undefined,
+        rewrittenQuery,
         retrievalCount: hits.length,
         citedReportIds: hits.map((hit) => hit.acn),
         latencyMs: Date.now() - started,
       });
-    } catch (logError) {
-      logger.error(logError instanceof Error ? logError.message : String(logError));
+    } catch (error) {
+      logStreamError(error);
     }
     res.end();
   }

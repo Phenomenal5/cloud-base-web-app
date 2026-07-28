@@ -5,16 +5,12 @@ import { logger } from "../config/logger.js";
 import { recordTokenUsage } from "./tokenUsageService.js";
 import type { Category, Severity } from "../generated/prisma/enums.js";
 
-// ─── Classification service (FR-20/21) ────────────────
-//
-// Assigns a fixed-set category + a LOW/MEDIUM/HIGH severity (with justification)
-// to a report. The LLM returns JSON that we validate with Yup; any invalid or
-// failed output falls back to a deterministic heuristic (§8.4 — invalid JSON
-// triggers a fallback, never a crash).
+// Assigns a category and a LOW/MEDIUM/HIGH severity to a report. The model
+// returns JSON, which we validate with Yup; anything invalid falls back to a
+// deterministic heuristic so ingestion never dies on a bad response.
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
-// Hard output-token cap (FR-18) — locked as a constant, not env-tunable.
 const CATEGORIZATION_MAX_TOKENS = 100;
 
 export const CATEGORIES: Category[] = [
@@ -63,8 +59,7 @@ export async function classifyReport(narrative: string): Promise<Classification>
     recordTokenUsage("CLASSIFICATION", env.chatModel, response.usage);
     const raw = response.choices[0]?.message?.content ?? "{}";
     const parsed: unknown = JSON.parse(raw);
-    const valid = await classificationSchema.validate(parsed, { stripUnknown: true });
-    return valid as Classification;
+    return (await classificationSchema.validate(parsed, { stripUnknown: true })) as Classification;
   } catch (error) {
     logger.warn(
       `Classification fell back to heuristic: ${error instanceof Error ? error.message : String(error)}`,
@@ -73,8 +68,8 @@ export async function classifyReport(narrative: string): Promise<Classification>
   }
 }
 
-// ─── Deterministic fallback ───────────────────────────
-// Keyword heuristic — used when no API key is set or the LLM output is invalid.
+// Keyword fallback, used when there's no API key or the model's output failed
+// validation. Order matters: the more specific patterns are checked first.
 function heuristicClassify(narrative: string): Classification {
   const text = narrative.toLowerCase();
 
@@ -99,7 +94,6 @@ function heuristicClassify(narrative: string): Classification {
   return {
     category,
     severity,
-    justification:
-      "Heuristic classification (dev fallback — set OPENAI_API_KEY for LLM classification).",
+    justification: "Heuristic classification (set OPENAI_API_KEY for LLM classification).",
   };
 }

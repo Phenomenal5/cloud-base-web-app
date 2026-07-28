@@ -7,7 +7,7 @@ import { logger } from "../config/logger.js";
 import { toPublicUser, PUBLIC_USER_SELECT } from "../utils/serializeUser.js";
 import { AVATAR_DIR } from "../middlewares/upload.js";
 
-// Best-effort delete of an old avatar file (never blocks the response).
+// Best effort: a leftover file on disk shouldn't fail the request.
 async function removeAvatarFile(filename: string | null): Promise<void> {
   if (!filename) return;
   try {
@@ -19,8 +19,24 @@ async function removeAvatarFile(filename: string | null): Promise<void> {
   }
 }
 
+// Swap the stored filename and clean up whatever it replaced.
+async function replaceAvatar(userId: string, filename: string | null) {
+  const existing = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { avatarPath: true },
+  });
+
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data: { avatarPath: filename },
+    select: PUBLIC_USER_SELECT,
+  });
+
+  await removeAvatarFile(existing?.avatarPath ?? null);
+  return user;
+}
+
 // ─── PATCH /api/users/me ──────────────────────────────
-// Update the signed-in user's profile (display name for now).
 export const updateProfile = catchAsync(async (req, res) => {
   const { displayName } = req.body as { displayName: string };
   const user = await prisma.user.update({
@@ -32,39 +48,16 @@ export const updateProfile = catchAsync(async (req, res) => {
 });
 
 // ─── PUT /api/users/me/avatar ─────────────────────────
-// Multipart field "avatar". multer has already written the file to disk; we save
-// the filename and clean up the previous one.
+// multer has already written the file; we only record its name.
 export const uploadUserAvatar = catchAsync(async (req, res) => {
   if (!req.file) throw new AppError("Attach an image in the 'avatar' field.", 400);
 
-  const existing = await prisma.user.findUnique({
-    where: { id: req.user!.id },
-    select: { avatarPath: true },
-  });
-
-  const user = await prisma.user.update({
-    where: { id: req.user!.id },
-    data: { avatarPath: req.file.filename },
-    select: PUBLIC_USER_SELECT,
-  });
-
-  await removeAvatarFile(existing?.avatarPath ?? null);
+  const user = await replaceAvatar(req.user!.id, req.file.filename);
   res.status(200).json({ message: "Avatar updated", data: { user: toPublicUser(user) } });
 });
 
 // ─── DELETE /api/users/me/avatar ──────────────────────
 export const deleteUserAvatar = catchAsync(async (req, res) => {
-  const existing = await prisma.user.findUnique({
-    where: { id: req.user!.id },
-    select: { avatarPath: true },
-  });
-
-  const user = await prisma.user.update({
-    where: { id: req.user!.id },
-    data: { avatarPath: null },
-    select: PUBLIC_USER_SELECT,
-  });
-
-  await removeAvatarFile(existing?.avatarPath ?? null);
+  const user = await replaceAvatar(req.user!.id, null);
   res.status(200).json({ message: "Avatar removed", data: { user: toPublicUser(user) } });
 });

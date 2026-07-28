@@ -7,8 +7,9 @@ function startOfUtcDay(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-// Build a { key: number } object with every enum value present (default 0).
-function tallocate<Key extends string>(
+// Turn sparse rows into a full { enumValue: count } map, so the dashboard always
+// gets every key and doesn't have to handle missing ones.
+function countsByKey<Key extends string>(
   keys: readonly Key[],
   rows: Array<{ key: Key; value: number }>,
 ): Record<Key, number> {
@@ -17,8 +18,8 @@ function tallocate<Key extends string>(
   return result;
 }
 
-// Coerce a Prisma Json column we control (always an object of numbers) back to a
-// typed map, tolerating any unexpected shape.
+// daily_metrics.tokensByOperation is a Json column we write ourselves, so it's
+// always an object of numbers. This just narrows it back without trusting it.
 function asNumberRecord(value: unknown): Record<string, number> {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, number>;
@@ -27,12 +28,10 @@ function asNumberRecord(value: unknown): Record<string, number> {
 }
 
 // ─── GET /api/admin/metrics ───────────────────────────
-// Dashboard aggregates. ADMIN only (enforced by the route).
 //
-// Query and token totals are read as: sum(daily_metrics) [history rolled up by
-// the worker] + today's live rows. This keeps the read cheap and bounded even
-// after the raw query_logs / token_usage rows are pruned by retention — the
-// worker rolls each completed day into daily_metrics before pruning it.
+// Query and token totals read as sum(daily_metrics) plus today's live rows. The
+// worker folds each completed day into daily_metrics before pruning the raw
+// tables, which keeps this query cheap no matter how much history accumulates.
 export const getMetrics = catchAsync(async (_req, res) => {
   const todayStart = startOfUtcDay();
 
@@ -67,9 +66,9 @@ export const getMetrics = catchAsync(async (_req, res) => {
       take: 6,
       select: { id: true, displayName: true, email: true, role: true, createdAt: true },
     }),
-    // Rolled-up history (one small row per completed day).
+    // One small row per completed day.
     prisma.dailyMetric.findMany(),
-    // Today's live rows (small — bounded to a single day).
+    // Today's rows, bounded to a single day.
     prisma.queryLog.groupBy({
       by: ["kind"],
       where: { createdAt: { gte: todayStart } },
@@ -86,13 +85,13 @@ export const getMetrics = catchAsync(async (_req, res) => {
     }),
   ]);
 
-  // ── Merge rollup history + today's live counts ──
+  // ── Merge the rolled-up history with today ──
   let queriesSearch = 0;
   let queriesAsk = 0;
-  const tokenByOperation: Record<string, number> = {};
   let tokensTotal = 0;
   let tokensPrompt = 0;
   let tokensCompletion = 0;
+  const tokensByOperation: Record<string, number> = {};
 
   for (const metric of dailyMetrics) {
     queriesSearch += metric.queriesSearch;
@@ -101,7 +100,7 @@ export const getMetrics = catchAsync(async (_req, res) => {
     tokensPrompt += metric.tokensPrompt;
     tokensCompletion += metric.tokensCompletion;
     for (const [operation, count] of Object.entries(asNumberRecord(metric.tokensByOperation))) {
-      tokenByOperation[operation] = (tokenByOperation[operation] ?? 0) + count;
+      tokensByOperation[operation] = (tokensByOperation[operation] ?? 0) + count;
     }
   }
 
@@ -114,8 +113,8 @@ export const getMetrics = catchAsync(async (_req, res) => {
   tokensPrompt += tokensTodayTotals._sum.promptTokens ?? 0;
   tokensCompletion += tokensTodayTotals._sum.completionTokens ?? 0;
   for (const row of tokensTodayByOperation) {
-    tokenByOperation[row.operation] =
-      (tokenByOperation[row.operation] ?? 0) + (row._sum.totalTokens ?? 0);
+    tokensByOperation[row.operation] =
+      (tokensByOperation[row.operation] ?? 0) + (row._sum.totalTokens ?? 0);
   }
 
   res.status(200).json({
@@ -124,7 +123,7 @@ export const getMetrics = catchAsync(async (_req, res) => {
         total: userTotal,
         blocked: blockedUsers,
         today: usersToday,
-        byRole: tallocate(
+        byRole: countsByKey(
           Object.values(Role),
           usersByRole.map((row) => ({ key: row.role, value: row._count._all })),
         ),
@@ -134,14 +133,14 @@ export const getMetrics = catchAsync(async (_req, res) => {
         total: jobTotals._count._all,
         reportsIngested: jobTotals._sum.reportsIngested ?? 0,
         chunksCreated: jobTotals._sum.chunksCreated ?? 0,
-        byStatus: tallocate(
+        byStatus: countsByKey(
           Object.values(JobStatus),
           jobsByStatus.map((row) => ({ key: row.status, value: row._count._all })),
         ),
       },
       queries: {
         total: queriesSearch + queriesAsk,
-        byKind: tallocate(Object.values(QueryKind), [
+        byKind: countsByKey(Object.values(QueryKind), [
           { key: QueryKind.SEARCH, value: queriesSearch },
           { key: QueryKind.ASK, value: queriesAsk },
         ]),
@@ -150,9 +149,9 @@ export const getMetrics = catchAsync(async (_req, res) => {
         total: tokensTotal,
         prompt: tokensPrompt,
         completion: tokensCompletion,
-        byOperation: tallocate(
+        byOperation: countsByKey(
           Object.values(AiOperation),
-          Object.entries(tokenByOperation).map(([key, value]) => ({
+          Object.entries(tokensByOperation).map(([key, value]) => ({
             key: key as AiOperation,
             value,
           })),

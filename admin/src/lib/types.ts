@@ -1,4 +1,4 @@
-// ─── Shared API types (mirror the backend) ────────────
+// These mirror the backend's response shapes.
 
 export type Role = 'TRAINEE' | 'ANALYST' | 'ADMIN'
 export type UserStatus = 'ACTIVE' | 'BLOCKED'
@@ -15,7 +15,8 @@ export interface User {
   createdAt: string
 }
 
-// /admin/users list item.
+// A row in /admin/users. Narrower than User: no avatar, since the table doesn't
+// show one.
 export interface AdminUser {
   id: string
   email: string

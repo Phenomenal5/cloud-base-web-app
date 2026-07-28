@@ -2,7 +2,6 @@ import { Router } from "express";
 import { listNotifications, markAllRead, markRead } from "../controllers/notificationController.js";
 import { protect } from "../middlewares/auth.js";
 
-// ─── /api/notifications ───────────────────────────────
 // A signed-in user's own notification feed.
 
 const router = Router();
@@ -44,7 +43,8 @@ router.get("/", listNotifications);
  *       200: { description: Marked read (count returned) }
  *       401: { $ref: '#/components/responses/Unauthorized' }
  */
-router.patch("/read-all", markAllRead); // before /:id/read (distinct path, but explicit)
+// Declared before /:id/read so "read-all" is never matched as an id.
+router.patch("/read-all", markAllRead);
 
 /**
  * @openapi

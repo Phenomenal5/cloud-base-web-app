@@ -3,10 +3,8 @@ import { setupListeners } from '@reduxjs/toolkit/query'
 import { api } from './api'
 import authReducer from './authSlice'
 
-// ─── Store ────────────────────────────────────────────
-// Single module-level store (this is a client-only SPA — no SSR, no per-request
-// store needed).
-
+// A single module-level store is fine here: this is a client-only SPA, so
+// there's no SSR and no need for a store per request.
 export const store = configureStore({
   reducer: {
     auth: authReducer,
@@ -15,6 +13,7 @@ export const store = configureStore({
   middleware: (getDefault) => getDefault().concat(api.middleware),
 })
 
+// Enables RTK Query's refetch on focus and on reconnect.
 setupListeners(store.dispatch)
 
 export type RootState = ReturnType<typeof store.getState>

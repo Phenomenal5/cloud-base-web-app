@@ -5,6 +5,7 @@ import { useAppSelector } from '@/store/hooks'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { cn } from '@/lib/cn'
 
+// `end` only on the dashboard, so "/" isn't marked active on every child route.
 const NAV_ITEMS = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/users', label: 'Users', icon: Users, end: false },
@@ -12,12 +13,14 @@ const NAV_ITEMS = [
   { to: '/broadcasts', label: 'Broadcasts', icon: Megaphone, end: false },
 ]
 
-export function Layout() {
+export const Layout = () => {
   const navigate = useNavigate()
   const user = useAppSelector((state) => state.auth.user)
   const [logout] = useLogoutMutation()
 
-  async function handleSignOut() {
+  const handleSignOut = async () => {
+    // Leave regardless: if the revoke call failed, the cookies are cleared on the
+    // next request anyway, and stranding them here helps nobody.
     await logout()
       .unwrap()
       .catch(() => undefined)

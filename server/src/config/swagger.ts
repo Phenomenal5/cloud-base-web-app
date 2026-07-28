@@ -1,11 +1,8 @@
 import swaggerJsdoc from "swagger-jsdoc";
 import { env } from "./env.js";
 
-// ─── OpenAPI / Swagger spec ───────────────────────────
-//
-// Rich reusable components live here so per-route @openapi blocks stay short.
-// Paths are scanned from JSDoc @openapi comments in the route files (src in dev,
-// dist in prod — tsc keeps comments by default).
+// Reusable components live here so the per-route @openapi blocks stay short.
+// Paths are scanned out of those blocks in the route files.
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -183,9 +180,10 @@ const options: swaggerJsdoc.Options = {
         },
       },
     },
-    // Default: endpoints require a session. Public endpoints override with `security: []`.
+    // Endpoints require a session by default; public ones opt out with `security: []`.
     security: [{ cookieAuth: [] }, { bearerAuth: [] }],
   },
+  // tsc keeps comments, so the compiled routes still carry the @openapi blocks.
   apis: [env.isProduction ? "./dist/routes/*.js" : "./src/routes/*.ts"],
 };
 

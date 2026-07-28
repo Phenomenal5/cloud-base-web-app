@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-// Returns a debounced copy of a value — updates only after `delay` ms of no
-// changes. Used to avoid firing a search request on every keystroke.
+// Returns a copy of the value that only updates after `delay` ms of quiet, so a
+// search request doesn't fire on every keystroke.
 export function useDebounce<T>(value: T, delay = 300): T {
   const [debouncedValue, setDebouncedValue] = useState(value);
 

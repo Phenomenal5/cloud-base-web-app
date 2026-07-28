@@ -3,15 +3,16 @@ import { Prisma } from "../generated/prisma/client.js";
 import { catchAsync } from "../utils/catchAsync.js";
 import { getOwnedConversation } from "../services/conversationService.js";
 
+const DEFAULT_LIMIT = 30;
+const MAX_LIMIT = 100;
+
 // ─── GET /api/conversations ───────────────────────────
-// The signed-in user's conversations. Excludes archived unless ?archived=true.
-// ?search= matches conversation titles AND message content. Pinned first, then
-// most recently active.
+// Pinned first, then most recently active. ?search= matches titles and message
+// content; archived threads are hidden unless ?archived=true.
 export const listConversations = catchAsync(async (req, res) => {
-  // Clamp pagination so a user with thousands of threads can't pull them all in
-  // one response. The sidebar shows the most recent page (pinned first).
+  // Clamped so a user with thousands of threads can't pull them all at once.
   const page = Math.max(1, Number(req.query.page) || 1);
-  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 30));
+  const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
   const skip = (page - 1) * limit;
 
   const includeArchived = req.query.archived === "true";
@@ -55,7 +56,6 @@ export const listConversations = catchAsync(async (req, res) => {
 });
 
 // ─── GET /api/conversations/:id ───────────────────────
-// One conversation with its messages (oldest → newest).
 export const getConversation = catchAsync(async (req, res) => {
   const conversation = await getOwnedConversation(req.user!.id, req.params.id as string);
 
@@ -69,9 +69,11 @@ export const getConversation = catchAsync(async (req, res) => {
 });
 
 // ─── PATCH /api/conversations/:id ─────────────────────
-// Rename / pin / archive (FR-27). Only the provided fields change.
+// Rename, pin, or archive. Only the fields present in the body change.
 export const updateConversation = catchAsync(async (req, res) => {
-  await getOwnedConversation(req.user!.id, req.params.id as string); // ownership check
+  const id = req.params.id as string;
+  await getOwnedConversation(req.user!.id, id);
+
   const { title, pinned, archived } = req.body as {
     title?: string;
     pinned?: boolean;
@@ -79,7 +81,7 @@ export const updateConversation = catchAsync(async (req, res) => {
   };
 
   const conversation = await prisma.conversation.update({
-    where: { id: req.params.id as string },
+    where: { id },
     data: { title, pinned, archived },
   });
 
@@ -87,9 +89,10 @@ export const updateConversation = catchAsync(async (req, res) => {
 });
 
 // ─── DELETE /api/conversations/:id ────────────────────
-// Cascades to messages (FR-27 delete; PRD §8.2 users can delete own conversations).
+// Cascades to the messages.
 export const deleteConversation = catchAsync(async (req, res) => {
-  await getOwnedConversation(req.user!.id, req.params.id as string);
-  await prisma.conversation.delete({ where: { id: req.params.id as string } });
+  const id = req.params.id as string;
+  await getOwnedConversation(req.user!.id, id);
+  await prisma.conversation.delete({ where: { id } });
   res.status(200).json({ message: "Conversation deleted" });
 });

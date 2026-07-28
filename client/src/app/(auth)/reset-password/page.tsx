@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { PasswordInput } from "@/components/ui/PasswordInput";
 import { Button } from "@/components/ui/Button";
 
-function ResetPasswordForm() {
+const ResetPasswordForm = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const emailFromQuery = searchParams.get("email") ?? "";
@@ -25,6 +25,7 @@ function ResetPasswordForm() {
     onSubmit: async (values) => {
       try {
         await resetPassword(values).unwrap();
+        // A reset revokes every session, so there's nothing to route into.
         toast.success("Password reset — please sign in");
         router.push("/login");
       } catch (error) {
@@ -86,12 +87,12 @@ function ResetPasswordForm() {
       </p>
     </div>
   );
-}
+};
 
-export default function ResetPasswordPage() {
-  return (
-    <Suspense fallback={<div className="py-6 text-center text-sm text-muted">Loading…</div>}>
-      <ResetPasswordForm />
-    </Suspense>
-  );
-}
+const ResetPasswordPage = () => (
+  <Suspense fallback={<div className="py-6 text-center text-sm text-muted">Loading…</div>}>
+    <ResetPasswordForm />
+  </Suspense>
+);
+
+export default ResetPasswordPage;

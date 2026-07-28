@@ -1,15 +1,14 @@
 import { randomUUID } from "node:crypto";
+import { Prisma } from "../generated/prisma/client.js";
 import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
 import { chunkText } from "../utils/chunk.js";
 import { embedTexts, toVectorLiteral } from "./embeddingService.js";
 import { classifyReport } from "./classificationService.js";
 
-// ─── Ingestion service ────────────────────────────────
-//
-// Report → chunks → embeddings → Postgres/pgvector. Shared by the offline seed
-// script now and (later) the admin-triggered background worker. Idempotent by
-// ACN: re-ingesting the same report replaces its chunks rather than duplicating.
+// Report -> chunks -> embeddings -> Postgres/pgvector. Shared by the seed script
+// and the background worker. Idempotent by ACN: re-ingesting a report replaces
+// its chunks instead of duplicating them.
 
 export interface RawReport {
   acn: string;
@@ -24,6 +23,23 @@ export interface IngestResult {
   skipped: number;
 }
 
+// The typed client can't write the embedding column (it's Unsupported()), so
+// chunks go in through raw SQL. NOTE: built as one multi-row INSERT rather than
+// one statement per chunk. A single large report can produce dozens of chunks,
+// and a round trip each is what makes a big ingestion crawl. Values are still
+// parameterized, not interpolated.
+async function insertChunks(reportId: string, pieces: string[], vectors: number[][]) {
+  const rows = pieces.map(
+    (content, index) =>
+      Prisma.sql`(${randomUUID()}, ${reportId}, ${index}, ${content}, ${toVectorLiteral(vectors[index]!)}::vector, now())`,
+  );
+
+  await prisma.$executeRaw`
+    INSERT INTO report_chunks (id, "reportId", "chunkIndex", content, embedding, "createdAt")
+    VALUES ${Prisma.join(rows)}
+  `;
+}
+
 export async function ingestReports(records: RawReport[]): Promise<IngestResult> {
   let reports = 0;
   let chunks = 0;
@@ -35,56 +51,39 @@ export async function ingestReports(records: RawReport[]): Promise<IngestResult>
       continue;
     }
 
-    // Classify (category + severity) at ingestion so triage data is ready (FR-20/21).
-    const classification = await classifyReport(record.narrative);
-
-    // Upsert the report (idempotent by ACN). On update, null the cached summary —
-    // the narrative may have changed, so any prior summary is stale.
-    const report = await prisma.report.upsert({
-      where: { acn: record.acn },
-      update: {
-        narrative: record.narrative,
-        synopsis: record.synopsis ?? null,
-        reportDate: record.reportDate ?? null,
-        category: classification.category,
-        severity: classification.severity,
-        severityJustification: classification.justification,
-        summary: null,
-      },
-      create: {
-        acn: record.acn,
-        narrative: record.narrative,
-        synopsis: record.synopsis ?? null,
-        reportDate: record.reportDate ?? null,
-        category: classification.category,
-        severity: classification.severity,
-        severityJustification: classification.justification,
-      },
-    });
-
-    // Replace existing chunks so re-ingestion stays clean.
-    await prisma.reportChunk.deleteMany({ where: { reportId: report.id } });
-
     const pieces = chunkText(record.narrative);
     if (pieces.length === 0) {
       skipped++;
       continue;
     }
 
+    // Classify at ingestion time so the triage view has category and severity
+    // ready without another LLM call on read.
+    const classification = await classifyReport(record.narrative);
     const vectors = await embedTexts(pieces);
 
-    // Insert chunks via raw SQL — the embedding is an Unsupported() vector column
-    // the typed client can't write. Parameterized; the literal is cast to vector.
-    for (let index = 0; index < pieces.length; index++) {
-      await prisma.$executeRaw`
-        INSERT INTO report_chunks (id, "reportId", "chunkIndex", content, embedding, "createdAt")
-        VALUES (${randomUUID()}, ${report.id}, ${index}, ${pieces[index]}, ${toVectorLiteral(vectors[index]!)}::vector, now())
-      `;
-      chunks++;
-    }
+    const fields = {
+      narrative: record.narrative,
+      synopsis: record.synopsis ?? null,
+      reportDate: record.reportDate ?? null,
+      category: classification.category,
+      severity: classification.severity,
+      severityJustification: classification.justification,
+    };
+
+    const report = await prisma.report.upsert({
+      where: { acn: record.acn },
+      // The narrative may have changed, so any cached summary is now stale.
+      update: { ...fields, summary: null },
+      create: { acn: record.acn, ...fields },
+    });
+
+    await prisma.reportChunk.deleteMany({ where: { reportId: report.id } });
+    await insertChunks(report.id, pieces, vectors);
 
     reports++;
-    logger.info(`Ingested ${record.acn} — ${pieces.length} chunk(s)`);
+    chunks += pieces.length;
+    logger.info(`Ingested ${record.acn}, ${pieces.length} chunk(s)`);
   }
 
   return { reports, chunks, skipped };

@@ -7,16 +7,14 @@ import { Plane } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
-// Shared shell for the auth pages. Signed-in users are bounced into the app —
-// auth pages are for guests/returning users only.
+// Shared shell for the auth pages, which also bounces signed-in users into the app.
 //
-// NOTE: this status-driven redirect is the RELIABLE way in. The auth pages also
-// push to /chat imperatively for snappiness, but that push can race the login
-// mutation's setUser dispatch and get dropped ("sometimes never routes"). This
-// effect reacts to the COMMITTED auth status, so it always lands the user in the
-// app. Target must match the pages' push target (/chat) so they never fight over
-// two different destinations.
-export default function AuthLayout({ children }: { children: ReactNode }) {
+// NOTE: this status-driven redirect is the reliable one. The pages themselves
+// also push to /chat for snappiness, but that push can run before the login
+// mutation's setUser commits and get dropped, which is why sign-in sometimes
+// appeared to do nothing. Reacting to committed status can't race. The target
+// has to stay /chat, matching the pages, or the two fight over destinations.
+const AuthLayout = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const status = useAppSelector((state) => state.auth.status);
 
@@ -39,10 +37,10 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           </span>
           Nasight
         </Link>
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900/60">
-          {children}
-        </div>
+        <div className="rounded-2xl border border-border bg-surface p-6 shadow-sm">{children}</div>
       </div>
     </main>
   );
-}
+};
+
+export default AuthLayout;

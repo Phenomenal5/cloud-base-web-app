@@ -5,7 +5,7 @@ import { env } from "../config/env.js";
 import { parseAsrsCsv } from "../utils/asrsCsv.js";
 import { enqueueIngestion } from "../config/queue.js";
 
-// Job fields surfaced to the admin UI (never the raw CSV).
+// What the admin UI sees. Never the raw CSV.
 const JOB_SELECT = {
   id: true,
   filename: true,
@@ -19,20 +19,21 @@ const JOB_SELECT = {
   createdAt: true,
 } as const;
 
+const RECENT_JOBS_LIMIT = 50;
+
 // ─── POST /api/admin/ingestions ───────────────────────
-// Accepts a CSV (multipart field "file"), records a QUEUED job, and enqueues it
-// for the background worker. Returns 202 — the request never blocks on ingestion
-// (FR-14/29/30).
+// Records a QUEUED job and hands it to the worker. Returns 202 immediately, so
+// the request never blocks on ingestion.
 export const uploadIngestion = catchAsync(async (req, res) => {
   if (!req.file) throw new AppError("Attach a CSV file in the 'file' field.", 400);
 
   const csvText = req.file.buffer.toString("utf8");
   const records = parseAsrsCsv(csvText);
   if (records.length === 0) {
-    throw new AppError("No valid reports found — the CSV needs ACN and narrative columns.", 400);
+    throw new AppError("No valid reports found. The CSV needs ACN and narrative columns.", 400);
   }
-  // Cap rows per upload — each row drives classification + embedding LLM calls,
-  // so an unbounded CSV is uncontrolled spend and an hours-long worker job.
+  // Every row means a classification call and an embedding call, so an unbounded
+  // CSV is uncontrolled spend and a worker job that runs for hours.
   if (records.length > env.ingestionMaxRows) {
     throw new AppError(
       `This CSV has ${records.length} reports; the per-upload limit is ${env.ingestionMaxRows}. Please split it into smaller files.`,
@@ -63,14 +64,14 @@ export const uploadIngestion = catchAsync(async (req, res) => {
 export const listIngestions = catchAsync(async (_req, res) => {
   const jobs = await prisma.ingestionJob.findMany({
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: RECENT_JOBS_LIMIT,
     select: JOB_SELECT,
   });
   res.status(200).json({ data: { jobs } });
 });
 
 // ─── GET /api/admin/ingestions/:id ────────────────────
-// Poll this for live status (queued / processing / completed / failed) (FR-31).
+// The admin UI polls this for live status.
 export const getIngestion = catchAsync(async (req, res) => {
   const job = await prisma.ingestionJob.findUnique({
     where: { id: req.params.id as string },

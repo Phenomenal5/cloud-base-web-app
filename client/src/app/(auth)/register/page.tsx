@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/Button";
 import { Divider } from "@/components/ui/Divider";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 
-export default function RegisterPage() {
+const RegisterPage = () => {
   const router = useRouter();
   const [register] = useRegisterMutation();
 
@@ -24,7 +24,7 @@ export default function RegisterPage() {
       try {
         await register(values).unwrap();
         toast.success("Account created — check your email for a code");
-        // Account created (unverified) → enter the emailed code to finish.
+        // Registering doesn't create a session; entering the emailed code does.
         router.push(`/verify-email?email=${encodeURIComponent(values.email)}`);
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Could not create your account."));
@@ -84,4 +84,6 @@ export default function RegisterPage() {
       </p>
     </div>
   );
-}
+};
+
+export default RegisterPage;

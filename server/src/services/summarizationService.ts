@@ -3,15 +3,11 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import { recordTokenUsage } from "./tokenUsageService.js";
 
-// ─── Summarization service (FR-19) ────────────────────
-//
-// Plain-language summary of a report's narrative. LLM when a key is set;
-// otherwise a deterministic first-sentences fallback. Callers cache the result
-// (see reports controller) so the same text is never re-summarized (§8.5).
+// Plain-language summary of a narrative. Callers cache the result on the report
+// row, so the same text is never summarized twice.
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
-// Hard output-token cap (FR-18) — locked as a constant, not env-tunable.
 const SUMMARY_MAX_TOKENS = 200;
 
 const SYSTEM_PROMPT =
@@ -40,11 +36,11 @@ export async function summarizeReport(narrative: string): Promise<string> {
   }
 }
 
-// First two sentences — enough to be useful without an LLM.
+// The first couple of sentences, which is enough to be useful without a model.
 function fallbackSummary(narrative: string): string {
   const sentences = narrative
     .replace(/\s+/g, " ")
     .trim()
     .split(/(?<=[.!?])\s+/);
-  return `${sentences.slice(0, 2).join(" ")} (Dev summary — set OPENAI_API_KEY for an LLM summary.)`;
+  return `${sentences.slice(0, 2).join(" ")} (Set OPENAI_API_KEY for a generated summary.)`;
 }

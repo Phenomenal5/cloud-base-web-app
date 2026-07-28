@@ -2,11 +2,9 @@ import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
 import type { AiOperation } from "../generated/prisma/enums.js";
 
-// ─── Token usage recording ────────────────────────────
-//
-// Fire-and-forget: never blocks or fails the AI operation it measures. Called
-// only when a real OpenAI response is available (the dev fallback makes no calls,
-// so nothing is recorded then).
+// Fire and forget: recording usage must never block or fail the AI call it's
+// measuring. Only called when there's a real provider response, so the dev
+// fallbacks record nothing.
 
 interface OpenAiUsage {
   prompt_tokens?: number;

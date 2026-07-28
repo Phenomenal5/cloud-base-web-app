@@ -2,12 +2,9 @@ import { PrismaClient } from "../generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { env } from "./env.js";
 
-// ─── Prisma client (singleton) ────────────────────────
-//
-// Prisma 7 removed the datasource `url` from the schema — the runtime connection
-// comes from a driver adapter. We use the pg adapter (standard Postgres: Neon /
-// Supabase). Import `prisma` from here everywhere; never `new PrismaClient()`
-// elsewhere, so the whole app shares one connection pool.
+// NOTE: Prisma 7 dropped the datasource url from the schema, so the connection
+// comes from a driver adapter instead. Import `prisma` from here everywhere and
+// never call `new PrismaClient()` elsewhere, so the app shares one pool.
 
 const adapter = new PrismaPg({ connectionString: env.databaseUrl });
 

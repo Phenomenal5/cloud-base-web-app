@@ -13,14 +13,13 @@ import { uploadCsv } from "../middlewares/upload.js";
 import { updateRoleSchema, updateStatusSchema } from "../validators/adminSchemas.js";
 import { broadcastSchema } from "../validators/notificationSchemas.js";
 
-// ─── /api/admin ───────────────────────────────────────
-// Everything here is ADMIN-only (RBAC, FR-9). protect → authorize once for all.
+// Everything under /api/admin is ADMIN-only, gated once here rather than
+// per-route, so a new route can't accidentally ship unprotected.
 
 const router = Router();
 
 router.use(protect, authorize("ADMIN"));
 
-// Dashboard metrics
 router.get("/metrics", getMetrics);
 
 /**

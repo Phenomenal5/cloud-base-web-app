@@ -1,7 +1,5 @@
 import * as yup from "yup";
 
-// ─── User profile schemas (Yup) ───────────────────────
-
 export const updateProfileSchema = yup.object({
   displayName: yup
     .string()

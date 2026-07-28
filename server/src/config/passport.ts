@@ -4,22 +4,17 @@ import { prisma } from "./prisma.js";
 import { env, isGoogleOAuthEnabled } from "./env.js";
 import { logger } from "./logger.js";
 
-// ─── Passport (Google OAuth, stateless) ───────────────
+// Passport only runs the OAuth code exchange. We don't use passport sessions;
+// the callback controller mints our own JWT cookie session so that credential
+// login and Google login end up in exactly the same place.
 //
-// Passport only handles the OAuth authorization-code exchange. We don't use
-// passport sessions (session: false) — the callback controller mints our own JWT
-// cookie session, keeping auth uniform with credential login.
-//
-// NOTE: this is the standard confidential-client code flow (client secret secures
-// the exchange). PKCE + state (PRD §8.1) would need a short-lived store for the
-// verifier/state across the redirect; add a cookie-based session store to enable
-// them. Left out for MVP to avoid extra infrastructure.
+// NOTE: this is the confidential-client code flow, where the client secret
+// secures the exchange. PKCE and state would need somewhere to keep the verifier
+// across the redirect, which means adding a session store.
 
 export function configurePassport(): void {
   if (!isGoogleOAuthEnabled) {
-    logger.warn(
-      "Google OAuth not configured (GOOGLE_CLIENT_ID/SECRET missing) — /api/auth/google is disabled.",
-    );
+    logger.warn("Google OAuth not configured, /api/auth/google is disabled.");
     return;
   }
 
@@ -32,8 +27,7 @@ export function configurePassport(): void {
       },
       async (_accessToken, _refreshToken, profile, done) => {
         try {
-          const user = await findOrCreateGoogleUser(profile);
-          done(null, user);
+          done(null, await findOrCreateGoogleUser(profile));
         } catch (error) {
           done(error as Error);
         }
@@ -42,27 +36,38 @@ export function configurePassport(): void {
   );
 }
 
+// NOTE: only trust the address when Google says it verified it. Linking on an
+// unverified address would let anyone who can set that address on a Google
+// account take over the matching local account.
+function verifiedEmail(profile: Profile): string | undefined {
+  const claims = profile._json as { email?: string; email_verified?: boolean };
+  if (!claims.email_verified) return undefined;
+  return claims.email?.toLowerCase();
+}
+
 async function findOrCreateGoogleUser(profile: Profile) {
   const providerAccountId = profile.id;
-  const email = profile.emails?.[0]?.value?.toLowerCase();
+  const email = verifiedEmail(profile);
   const displayName = profile.displayName || email?.split("@")[0] || "Google User";
 
-  // 1. Already linked → return that user.
+  // Already linked, nothing else to do.
   const linked = await prisma.oAuthAccount.findUnique({
     where: { provider_providerAccountId: { provider: "GOOGLE", providerAccountId } },
     include: { user: true },
   });
   if (linked) return linked.user;
 
-  // 2. Link to an existing account with the same email, else create one. Google
-  //    has already verified the address, so these users skip our email step.
+  // Otherwise attach to the account with that email, or create one. Google has
+  // already verified the address, so these users skip our own email step.
   let user = email ? await prisma.user.findUnique({ where: { email } }) : null;
   if (!user) {
     user = await prisma.user.create({
       data: {
+        // Falls back to a placeholder so an account with no usable email still
+        // gets a unique, non-colliding row.
         email: email ?? `google_${providerAccountId}@nasight.local`,
         displayName,
-        emailVerified: true,
+        emailVerified: Boolean(email),
       },
     });
   }

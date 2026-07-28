@@ -2,13 +2,13 @@ import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import type { Role, QueryKind } from "../generated/prisma/enums.js";
 
-// ─── Query log + quota service ────────────────────────
-//
-// The query_logs table is both the audit trail (FR-33) and the quota counter
-// (FR-11/12): a day's usage is just the count of a user's / IP's rows since
-// midnight UTC. No Redis (PRD §9.3) — Prisma is the source of truth.
+// query_logs is both the audit trail and the quota counter: a day's usage is
+// just the count of a user's or an IP's rows since midnight UTC. No Redis in
+// this stack, so Postgres is the source of truth.
 
-// Daily limit for a role; null = unlimited (ADMIN). No role = guest.
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+// null means unlimited. No role at all means a guest.
 export function dailyLimitFor(role: Role | undefined): number | null {
   if (!role) return env.quotaGuest;
   switch (role) {
@@ -26,16 +26,12 @@ function startOfUtcDay(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-// When the current quota window rolls over — i.e. the next midnight UTC. Sent to
-// the client so an exhausted user is told when they get access back, instead of
-// a bare "limit reached". Returned as a Date; serialize with toISOString() so the
-// browser can render it in the viewer's own timezone.
+// Next midnight UTC. Sent to the client so someone who's out of questions is told
+// when they get them back, rather than just "limit reached".
 export function quotaResetsAt(): Date {
-  const startOfToday = startOfUtcDay();
-  return new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+  return new Date(startOfUtcDay().getTime() + MS_PER_DAY);
 }
 
-// Queries used today by a member (userId) or a guest (ipAddress).
 export function usedToday(identity: { userId?: string; ip?: string }): Promise<number> {
   return prisma.queryLog.count({
     where: {
@@ -45,7 +41,6 @@ export function usedToday(identity: { userId?: string; ip?: string }): Promise<n
   });
 }
 
-// Record a completed query. IP is stored ONLY for guests (privacy, PRD §8.2).
 export async function logQuery(entry: {
   userId?: string;
   ip?: string;
@@ -59,6 +54,8 @@ export async function logQuery(entry: {
   await prisma.queryLog.create({
     data: {
       userId: entry.userId ?? null,
+      // The IP is only kept for guests, who have no user id to count against.
+      // Storing it for signed-in users would be personal data we don't need.
       ipAddress: entry.userId ? null : (entry.ip ?? null),
       kind: entry.kind,
       query: entry.query,

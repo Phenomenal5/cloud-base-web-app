@@ -11,11 +11,13 @@ import type {
 import { axiosBaseQuery, type AxiosQueryArgs, type AxiosQueryError } from './axiosBaseQuery'
 import { clearUser } from './authSlice'
 
-// ─── The admin HTTP client (RTK Query over axios) ─────
-// On a 401 for a protected route, rotate the session via /auth/refresh once and
-// retry; if that fails, clear the user.
+// On a 401 for a protected route we rotate the session through /auth/refresh
+// once and retry; if that fails, the user is cleared.
 
 const rawBaseQuery = axiosBaseQuery()
+
+// NOTE: concurrent 401s must share a single refresh. The refresh token rotates,
+// so a second parallel refresh would invalidate the first one's result.
 let refreshPromise: ReturnType<typeof rawBaseQuery> | null = null
 
 const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQueryError> = async (
@@ -26,6 +28,7 @@ const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQu
   let result = await rawBaseQuery(queryArgs, baseQueryApi, extraOptions)
 
   const requestUrl = typeof queryArgs === 'string' ? queryArgs : queryArgs.url
+  // A failed login or refresh must not trigger another refresh.
   const isAuthRoute = requestUrl.startsWith('/auth/')
 
   if (result.error?.status === 401 && !isAuthRoute) {
@@ -58,6 +61,8 @@ export const api = createApi({
     metrics: builder.query<Metrics, void>({
       query: () => '/admin/metrics',
       transformResponse: (response: ApiEnvelope<Metrics>) => response.data,
+      // The dashboard counts users and jobs, so it goes stale when either list
+      // changes.
       providesTags: [
         { type: 'User', id: 'LIST' },
         { type: 'IngestionJob', id: 'LIST' },

@@ -5,25 +5,22 @@ import { logger } from "../config/logger.js";
 import { ingestReports } from "../services/ingestionService.js";
 import { parseAsrsCsv } from "../utils/asrsCsv.js";
 
-// ─── Offline seed script ──────────────────────────────
+// Offline seed path. Admin uploads go through the worker instead, but both end
+// up in the same ingestReports().
 //
-// Loads an ASRS CSV, maps its columns to reports, and ingests them (chunk →
-// embed → classify → store). This is the PRD's "initial seed path" (§10.3);
-// admin uploads go through the background worker (same ingestReports underneath).
-//
-//   pnpm seed                       # uses the bundled sample CSV
-//   pnpm seed path/to/asrs.csv      # your real export
+//   npm run seed                    uses the bundled sample CSV
+//   npm run seed path/to/asrs.csv   uses a real export
 
 async function main() {
   const csvPath = resolve(process.argv[2] ?? "src/scripts/sample-asrs.csv");
   logger.info(`Seeding from ${csvPath}`);
 
   const records = parseAsrsCsv(readFileSync(csvPath, "utf8"));
-  logger.info(`Parsed ${records.length} report(s); ingesting…`);
+  logger.info(`Parsed ${records.length} report(s), ingesting`);
 
   const result = await ingestReports(records);
   logger.info(
-    `Seed complete — ${result.reports} report(s), ${result.chunks} chunk(s), ${result.skipped} skipped.`,
+    `Seed complete: ${result.reports} report(s), ${result.chunks} chunk(s), ${result.skipped} skipped.`,
   );
 }
 

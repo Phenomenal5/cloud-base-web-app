@@ -1,10 +1,8 @@
 import axios from 'axios'
 import { config } from './config'
 
-// ─── Axios instance ───────────────────────────────────
-// withCredentials sends the httpOnly auth cookies (no JWT read in JS). Used under
-// RTK Query via the axios baseQuery.
-
+// withCredentials is what sends the httpOnly auth cookies. No JWT is ever read
+// from JS.
 export const apiClient = axios.create({
   baseURL: config.apiUrl,
   withCredentials: true,

@@ -2,11 +2,8 @@ import type { BaseQueryFn } from "@reduxjs/toolkit/query";
 import { AxiosError, type AxiosRequestConfig } from "axios";
 import { apiClient } from "@/lib/axios";
 
-// ─── Axios baseQuery for RTK Query ────────────────────
-//
-// Lets RTK Query use axios as its transport instead of fetch, keeping all the
-// caching/tags/hooks while getting axios's ergonomics. Args mirror the shape our
-// endpoints already produce: { url, method, body, params }.
+// Lets RTK Query use axios as its transport instead of fetch, so we keep the
+// caching, tags and generated hooks while still getting axios's ergonomics.
 
 export interface AxiosQueryArgs {
   url: string;
@@ -16,8 +13,8 @@ export interface AxiosQueryArgs {
   headers?: AxiosRequestConfig["headers"];
 }
 
-// Error shape kept compatible with fetchBaseQuery ({ status, data }) so reauth
-// and error handling read the same everywhere.
+// Kept compatible with fetchBaseQuery's { status, data }, so reauth and error
+// handling read the same everywhere.
 export interface AxiosQueryError {
   status?: number;
   data?: unknown;

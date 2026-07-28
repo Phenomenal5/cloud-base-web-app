@@ -1,12 +1,8 @@
 import { env } from "../config/env.js";
 
-// ─── Narrative chunking ───────────────────────────────
-//
-// Split a long narrative into overlapping ~200–500 token windows for embedding
-// accuracy (PRD §11.4). Token count is approximated by characters (~4 chars/token).
-// Prefers to cut on a sentence boundary so chunks read cleanly; falls back to a
-// hard character cut. Overlap preserves context across chunk edges.
-
+// Split a narrative into overlapping windows for embedding. Token count is
+// approximated by characters (~4 chars/token). We prefer to cut on a sentence
+// boundary so chunks read cleanly, and overlap keeps context across the seams.
 export function chunkText(
   text: string,
   maxChars: number = env.chunkMaxChars,
@@ -22,7 +18,8 @@ export function chunkText(
   while (start < clean.length) {
     let end = Math.min(start + maxChars, clean.length);
 
-    // Try to end on a sentence boundary within the back half of the window.
+    // Only accept a sentence break in the back half of the window, otherwise a
+    // short first sentence would produce tiny chunks.
     if (end < clean.length) {
       const boundary = clean.lastIndexOf(". ", end);
       if (boundary > start + maxChars * 0.5) end = boundary + 1;
@@ -32,7 +29,7 @@ export function chunkText(
     if (piece) chunks.push(piece);
 
     if (end >= clean.length) break;
-    start = Math.max(end - overlapChars, start + 1); // guard against no-progress
+    start = Math.max(end - overlapChars, start + 1); // the +1 guards against no progress
   }
 
   return chunks;

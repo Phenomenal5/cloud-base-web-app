@@ -2,8 +2,8 @@ import type { BaseQueryFn } from '@reduxjs/toolkit/query'
 import { AxiosError, type AxiosRequestConfig } from 'axios'
 import { apiClient } from '@/lib/axios'
 
-// ─── Axios baseQuery for RTK Query ────────────────────
-// Lets RTK Query use axios as its transport while keeping caching/tags/hooks.
+// Lets RTK Query use axios as its transport, while keeping the caching, tags and
+// generated hooks.
 
 export interface AxiosQueryArgs {
   url: string
@@ -12,6 +12,8 @@ export interface AxiosQueryArgs {
   params?: AxiosRequestConfig['params']
 }
 
+// Kept compatible with fetchBaseQuery's { status, data }, so reauth and error
+// handling read the same everywhere.
 export interface AxiosQueryError {
   status?: number
   data?: unknown

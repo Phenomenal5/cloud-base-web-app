@@ -1,11 +1,9 @@
 import Papa from "papaparse";
 import type { RawReport } from "../services/ingestionService.js";
 
-// ─── ASRS CSV parsing ─────────────────────────────────
-//
-// Maps an ASRS CSV export to RawReport[]. Column matching is case-insensitive
-// and tolerant of common ASRS header names. Shared by the offline seed script
-// and the background ingestion worker.
+// Maps an ASRS CSV export to RawReport[]. ASRS exports don't use consistent
+// header names, so matching is case-insensitive across a few known aliases.
+// Shared by the seed script and the ingestion worker.
 
 const HEADER_ALIASES: Record<keyof RawReport, string[]> = {
   acn: ["acn", "accession number", "accessionnumber", "id"],
@@ -23,19 +21,21 @@ function pick(row: Record<string, string>, aliases: string[]): string | undefine
   return undefined;
 }
 
+// Rows without an ACN or a narrative are unusable, so they're dropped here rather
+// than failing the whole upload.
 function toRawReport(row: Record<string, string>): RawReport | null {
   const acn = pick(row, HEADER_ALIASES.acn);
   const narrative = pick(row, HEADER_ALIASES.narrative);
   if (!acn || !narrative) return null;
 
-  const dateStr = pick(row, HEADER_ALIASES.reportDate);
-  const parsed = dateStr ? new Date(dateStr) : null;
+  const rawDate = pick(row, HEADER_ALIASES.reportDate);
+  const reportDate = rawDate ? new Date(rawDate) : null;
 
   return {
     acn,
     narrative,
     synopsis: pick(row, HEADER_ALIASES.synopsis) ?? null,
-    reportDate: parsed && !Number.isNaN(parsed.getTime()) ? parsed : null,
+    reportDate: reportDate && !Number.isNaN(reportDate.getTime()) ? reportDate : null,
   };
 }
 
