@@ -2,21 +2,20 @@
 
 import { useState, type KeyboardEvent } from "react";
 import { ArrowUp, TimerReset } from "lucide-react";
-import type { QuotaState } from "@/lib/chatStream";
 import { formatLocalTime, formatTimeUntil } from "@/lib/utils";
+import { UsageIndicator } from "./UsageIndicator";
 
 const MAX_QUERY_LENGTH = 500;
 
 interface ChatComposerProps {
   onSend: (text: string) => void;
   disabled?: boolean;
-  quota?: QuotaState | null;
   // Set once the daily allowance is spent. Locks the box rather than letting
   // someone type out a question that can only fail.
   exhaustedUntil?: string | null;
 }
 
-export const ChatComposer = ({ onSend, disabled, quota, exhaustedUntil }: ChatComposerProps) => {
+export const ChatComposer = ({ onSend, disabled, exhaustedUntil }: ChatComposerProps) => {
   const [text, setText] = useState("");
   const isOutOfQuota = Boolean(exhaustedUntil);
   const isLocked = isOutOfQuota || disabled;
@@ -36,17 +35,15 @@ export const ChatComposer = ({ onSend, disabled, quota, exhaustedUntil }: ChatCo
     }
   };
 
-  // Reset time when they're out, a running count as it gets low, otherwise the
-  // standard grounding note.
+  // Reset time when they're out, otherwise the standard grounding note.
+  //
+  // NOTE: no running count here on purpose. It used to read "N of M questions
+  // left today" under every keystroke, which turned the composer into a
+  // countdown clock. Usage now lives behind the dial next to the send button,
+  // for whoever actually wants to look.
   const footerText = () => {
     if (exhaustedUntil) {
       return `No questions left today — resets ${formatTimeUntil(exhaustedUntil)}, at ${formatLocalTime(exhaustedUntil)}.`;
-    }
-    if (quota && quota.limit !== null && quota.remaining !== null) {
-      if (quota.remaining === 0 && quota.resetsAt) {
-        return `That was your last question for today — resets at ${formatLocalTime(quota.resetsAt)}.`;
-      }
-      return `${quota.remaining} of ${quota.limit} questions left today`;
     }
     return "Answers are grounded in NASA ASRS reports.";
   };
@@ -74,6 +71,8 @@ export const ChatComposer = ({ onSend, disabled, quota, exhaustedUntil }: ChatCo
           maxLength={MAX_QUERY_LENGTH}
           className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted disabled:cursor-not-allowed"
         />
+        {/* Renders nothing for guests, who have the sign-up banner instead. */}
+        <UsageIndicator />
         <button
           type="button"
           onClick={submit}

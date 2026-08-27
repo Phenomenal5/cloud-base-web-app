@@ -1,3 +1,4 @@
+import type { Response } from "express";
 import { catchAsync } from "../utils/catchAsync.js";
 import AppError from "../utils/AppError.js";
 import { logger } from "../config/logger.js";
@@ -17,14 +18,39 @@ import {
   addMessage,
   titleFromMessage,
 } from "../services/conversationService.js";
-import { logQuery } from "../services/queryLogService.js";
-import { clientIp } from "../middlewares/quota.js";
+import {
+  logQuery,
+  dailyLimitFor,
+  usedToday,
+  quotaResetsAt,
+} from "../services/queryLogService.js";
+import { clientIp, buildQuotaInfo, type QuotaSnapshot } from "../middlewares/quota.js";
 
 const MAX_QUERY_LENGTH = 500;
 const STREAM_FAILURE_MESSAGE = "The answer service is temporarily unavailable. Please try again.";
 
 function logStreamError(error: unknown): void {
   logger.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
+}
+
+// NOTE: usage has to go out BEFORE done or error. The browser closes the
+// EventSource the instant it sees either one, so an event sent after them is
+// written into a socket nobody is reading.
+function sendUsage(res: Response, consumed: number): void {
+  sendEvent(res, "usage", buildQuotaInfo(res.locals.quota as QuotaSnapshot, consumed));
+}
+
+// The audit trail doubles as the quota counter, so a failure to write it must not
+// take the answer down with it. Returns how many queries were actually charged —
+// 0 on failure, so the usage figure we report matches what's really in the table.
+async function recordQuery(entry: Parameters<typeof logQuery>[0]): Promise<number> {
+  try {
+    await logQuery(entry);
+    return 1;
+  } catch (error) {
+    logStreamError(error);
+    return 0;
+  }
 }
 
 // ─── GET /api/ask (Server-Sent Events) ────────────────
@@ -90,24 +116,32 @@ export const ask = catchAsync(async (req, res) => {
   // Not logged as a query, so a greeting doesn't cost anyone their daily quota.
   if (resolved.mode === "chat") {
     initSse(res);
-    sendEvent(res, "meta", { conversationId, quota: res.locals.quota });
+    sendEvent(res, "meta", { conversationId });
     sendEvent(res, "sources", { count: 0, sources: [] });
 
     let reply = "";
+    let streamFailed = false;
     try {
       for await (const chunk of streamChatReply(history, query)) {
         if (clientGone) break;
         reply += chunk;
         sendEvent(res, "token", { text: chunk });
       }
-      sendEvent(res, "done", { grounded: false, citations: [], conversationId });
     } catch (error) {
+      streamFailed = true;
       logStreamError(error);
-      sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
-    } finally {
-      await persistReply(reply, []);
-      res.end();
     }
+
+    await persistReply(reply, []);
+    // Nothing was logged, so nothing was consumed. Reporting the unchanged
+    // figure is the whole point: a greeting must not look like a spent question.
+    sendUsage(res, 0);
+    if (streamFailed) {
+      sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
+    } else {
+      sendEvent(res, "done", { grounded: false, citations: [], conversationId });
+    }
+    res.end();
     return;
   }
 
@@ -119,7 +153,7 @@ export const ask = catchAsync(async (req, res) => {
 
   initSse(res);
 
-  sendEvent(res, "meta", { conversationId, rewrittenQuery, quota: res.locals.quota });
+  sendEvent(res, "meta", { conversationId, rewrittenQuery });
   sendEvent(res, "sources", {
     count: hits.length,
     sources: hits.map((hit) => ({
@@ -135,9 +169,8 @@ export const ask = catchAsync(async (req, res) => {
   if (hits.length === 0) {
     const message = "I couldn't find any relevant reports in the corpus for that question.";
     sendEvent(res, "token", { text: message });
-    sendEvent(res, "done", { grounded: false, citations: [], conversationId });
     await persistReply(message, []);
-    await logQuery({
+    const consumed = await recordQuery({
       userId: req.user?.id,
       ip: clientIp(req),
       kind: "ASK",
@@ -147,12 +180,15 @@ export const ask = catchAsync(async (req, res) => {
       citedReportIds: [],
       latencyMs: Date.now() - started,
     });
+    sendUsage(res, consumed);
+    sendEvent(res, "done", { grounded: false, citations: [], conversationId });
     res.end();
     return;
   }
 
   const citations = hits.map((hit) => ({ acn: hit.acn, reportId: hit.reportId }));
   let answer = "";
+  let streamFailed = false;
 
   try {
     for await (const chunk of streamGroundedAnswer(searchQuery, hits)) {
@@ -160,28 +196,45 @@ export const ask = catchAsync(async (req, res) => {
       answer += chunk;
       sendEvent(res, "token", { text: chunk });
     }
-    sendEvent(res, "done", { grounded: true, citations, conversationId });
   } catch (error) {
+    streamFailed = true;
     logStreamError(error);
-    sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
-  } finally {
-    await persistReply(answer, citations);
-    // The audit trail doubles as the quota counter, so a failure to write it
-    // shouldn't take the response down with it.
-    try {
-      await logQuery({
-        userId: req.user?.id,
-        ip: clientIp(req),
-        kind: "ASK",
-        query,
-        rewrittenQuery,
-        retrievalCount: hits.length,
-        citedReportIds: hits.map((hit) => hit.acn),
-        latencyMs: Date.now() - started,
-      });
-    } catch (error) {
-      logStreamError(error);
-    }
-    res.end();
   }
+
+  await persistReply(answer, citations);
+  const consumed = await recordQuery({
+    userId: req.user?.id,
+    ip: clientIp(req),
+    kind: "ASK",
+    query,
+    rewrittenQuery,
+    retrievalCount: hits.length,
+    citedReportIds: hits.map((hit) => hit.acn),
+    latencyMs: Date.now() - started,
+  });
+
+  sendUsage(res, consumed);
+  if (streamFailed) {
+    sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
+  } else {
+    sendEvent(res, "done", { grounded: true, citations, conversationId });
+  }
+  res.end();
+});
+
+// ─── GET /api/ask/usage ───────────────────────────────
+//
+// Backs the chat composer's usage indicator, which needs a figure on page load,
+// before any question has been asked. Signed-in only: a guest's allowance is
+// counted per IP, which is neither theirs to see nor stable enough to show.
+export const getUsage = catchAsync(async (req, res) => {
+  const limit = dailyLimitFor(req.user!.role);
+  // Admins are unlimited, so there's nothing worth a COUNT(*) for them.
+  const used = limit === null ? 0 : await usedToday({ userId: req.user!.id });
+
+  res.status(200).json({
+    data: {
+      usage: buildQuotaInfo({ limit, used, resetsAt: quotaResetsAt() }, 0),
+    },
+  });
 });

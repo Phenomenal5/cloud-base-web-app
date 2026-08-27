@@ -8,6 +8,7 @@ import type {
   ReportPage,
   ReportFilters,
   NotificationFeed,
+  UsageInfo,
 } from "@/lib/types";
 import { axiosBaseQuery, type AxiosQueryArgs, type AxiosQueryError } from "./axiosBaseQuery";
 import { clearUser, setUser } from "./authSlice";
@@ -57,7 +58,7 @@ const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQu
 export const api = createApi({
   reducerPath: "api",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["User", "Conversation", "Notification", "Report", "IngestionJob"],
+  tagTypes: ["User", "Conversation", "Notification", "Report", "IngestionJob", "Usage"],
   endpoints: (builder) => ({
     // ── Session ──
     me: builder.query<User, void>({
@@ -123,6 +124,16 @@ export const api = createApi({
     logout: builder.mutation<{ message: string }, void>({
       query: () => ({ url: "/auth/logout", method: "POST" }),
       invalidatesTags: [{ type: "User", id: "ME" }],
+    }),
+
+    // ── Usage ──
+    // Seeds the composer's usage indicator on page load. After that the answer
+    // stream keeps it current (see updateUsage in the chat page), so this never
+    // needs polling.
+    getUsage: builder.query<UsageInfo, void>({
+      query: () => "/ask/usage",
+      transformResponse: (response: ApiEnvelope<{ usage: UsageInfo }>) => response.data.usage,
+      providesTags: [{ type: "Usage", id: "ME" }],
     }),
 
     // ── Conversations ──
@@ -263,6 +274,7 @@ export const {
   useForgotPasswordMutation,
   useResetPasswordMutation,
   useLogoutMutation,
+  useGetUsageQuery,
   useListConversationsQuery,
   useGetConversationQuery,
   useLazyGetConversationQuery,

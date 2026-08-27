@@ -60,6 +60,36 @@ See `.env.example` for the fully commented list.
 
 ---
 
+## Docker
+
+`docker-compose.yml` runs both processes — the API and the worker — off one image. There's no database container: `DATABASE_URL` in `.env` points at the hosted Postgres (Neon), exactly like `npm run dev` does.
+
+```bash
+cp .env.example .env      # DATABASE_URL, JWT_ACCESS_SECRET, the API keys
+docker compose up -d --build
+```
+
+`http://localhost:8000/api/health` should then return `{"status":"ok","db":"up"}`.
+
+A few things worth knowing:
+
+- **One image, two services.** `api` and `worker` are the same build with different commands, sharing a compose anchor. Rebuild once, both get it.
+- **Migrations run automatically** — the `api` container runs `prisma migrate deploy` before starting, and it's the only one that does, so the worker can't race it. That's also why `prisma` is a regular dependency rather than a dev one: the pruned production install still has to have the CLI.
+- **Avatars live in the `uploads` volume**, because they're written to disk. `docker compose down` keeps it, `docker compose down -v` deletes it.
+- **`NODE_ENV` defaults to `production`** when it isn't set in `.env`, which turns on the strict boot checks. Running the stack locally against `localhost:3000` needs `NODE_ENV=development`.
+- **`API_PORT` is the host port only.** Inside the container the app always listens on 8000.
+
+Logs and one-off commands:
+
+```bash
+docker compose logs -f api worker
+docker compose exec api ./node_modules/.bin/prisma migrate status
+```
+
+`npm run seed` isn't available in the container — it's a `tsx` script and `tsx` is a devDependency — so run it from the host, where it hits the same hosted database anyway.
+
+---
+
 ## How a question actually gets answered
 
 `GET /api/ask` is the interesting endpoint. It's a `GET` (not a POST) because it's consumed by the browser's native `EventSource`, which only issues GETs. Roughly what happens:

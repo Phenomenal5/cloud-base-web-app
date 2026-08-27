@@ -1,5 +1,5 @@
 import { config } from "./config";
-import type { Source, Citation } from "./types";
+import type { Source, Citation, UsageInfo } from "./types";
 
 // Opens the SSE connection to /ask and hands its named events to callbacks.
 // Returns a function that closes the stream, for cancelling a request.
@@ -8,16 +8,9 @@ import type { Source, Citation } from "./types";
 // withCredentials sends the auth cookie, so signed-in users get a persisted
 // conversation and guests stream without one.
 
-export interface QuotaState {
-  limit: number | null;
-  remaining: number | null;
-  resetsAt: string | null;
-}
-
 export interface StreamMeta {
   conversationId?: string;
   rewrittenQuery?: string;
-  quota?: QuotaState | null;
 }
 
 // `code` is what tells the UI whether this is something the user can act on
@@ -41,6 +34,11 @@ interface StreamCallbacks {
   onMeta?: (meta: StreamMeta) => void;
   onSources?: (sources: Source[]) => void;
   onToken?: (text: string) => void;
+  // Arrives just before done/error, and reports what the turn actually cost.
+  // NOTE: not every turn costs one — small talk is answered without spending an
+  // allowance — which is why this is a figure from the server and never a local
+  // decrement.
+  onUsage?: (usage: UsageInfo) => void;
   onDone?: (done: StreamDone) => void;
   onError?: (error: StreamError) => void;
 }
@@ -69,6 +67,10 @@ export function streamAnswer(
   eventSource.addEventListener("token", (event) => {
     const payload = JSON.parse((event as MessageEvent).data) as { text: string };
     callbacks.onToken?.(payload.text);
+  });
+
+  eventSource.addEventListener("usage", (event) => {
+    callbacks.onUsage?.(JSON.parse((event as MessageEvent).data) as UsageInfo);
   });
 
   eventSource.addEventListener("done", (event) => {

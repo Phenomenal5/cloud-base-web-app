@@ -5,13 +5,59 @@ import { dailyLimitFor, usedToday, quotaResetsAt } from "../services/queryLogSer
 import { initSse, sendEvent } from "../utils/sse.js";
 
 // Daily query quota. Mount after optionalAuth, since it reads req.user. Stashes
-// the remaining count on res.locals.quota for the controller to echo back, so the
-// UI can warn as the limit approaches.
+// the day's usage so far on res.locals.quota, for the controller to turn into a
+// figure the UI can show once it knows whether this turn actually counted.
 
-export interface QuotaInfo {
+// The day's usage as it stood BEFORE this request ran.
+//
+// NOTE: deliberately a raw `used`, not a pre-decremented "remaining". The old
+// version stashed `limit - used - 1` here and streamed it straight to the client,
+// which was wrong for every turn that never reaches logQuery — small talk isn't
+// logged at all, so the count in the DB never moved while the UI kept reporting
+// a question spent. Since each turn re-reads `used`, the number the user saw
+// stuck at that first phantom decrement. Whether a turn consumes an allowance is
+// only known after the handler classifies it, so the client-facing figure is
+// built there, via buildQuotaInfo, once the answer is logged.
+export interface QuotaSnapshot {
   limit: number | null; // null means unlimited (admin)
+  used: number;
+  resetsAt: Date | null; // null when unlimited
+}
+
+// What the client is shown. The chat UI renders `percentUsed` and nothing else;
+// the raw numbers stay in the payload for the API's own consumers.
+export interface QuotaInfo {
+  limit: number | null;
+  used: number;
   remaining: number | null;
+  percentUsed: number | null; // 0–100, null when unlimited
   resetsAt: string | null; // ISO midnight UTC, null when unlimited
+}
+
+// `consumed` is how many queries this request actually logged: 1 for an answered
+// question, 0 for small talk or a write that failed.
+export function buildQuotaInfo(snapshot: QuotaSnapshot, consumed: number): QuotaInfo {
+  const { limit } = snapshot;
+  const used = snapshot.used + consumed;
+
+  if (limit === null) {
+    return { limit: null, used, remaining: null, percentUsed: null, resetsAt: null };
+  }
+
+  // Clamped, because a race between two in-flight streams can push the tally a
+  // hair past the limit, and "31 of 30 used" reads as a bug to the person seeing it.
+  const clampedUsed = Math.min(limit, used);
+
+  return {
+    limit,
+    used: clampedUsed,
+    remaining: Math.max(0, limit - clampedUsed),
+    // NOTE: guard the divisor. A misconfigured QUOTA_*_DAILY of 0 would otherwise
+    // make this NaN, which serialises to null and reads as "unlimited" — the exact
+    // opposite of what a zero limit means.
+    percentUsed: limit > 0 ? Math.round((clampedUsed / limit) * 100) : 100,
+    resetsAt: (snapshot.resetsAt ?? quotaResetsAt()).toISOString(),
+  };
 }
 
 // `trust proxy` is set in production, so req.ip is the real client address.
@@ -60,7 +106,7 @@ export const enforceQueryQuota = catchAsync(async (req, res, next) => {
   const limit = dailyLimitFor(req.user?.role);
 
   if (limit === null) {
-    res.locals.quota = { limit: null, remaining: null, resetsAt: null } satisfies QuotaInfo;
+    res.locals.quota = { limit: null, used: 0, resetsAt: null } satisfies QuotaSnapshot;
     return next();
   }
 
@@ -71,11 +117,6 @@ export const enforceQueryQuota = catchAsync(async (req, res, next) => {
     return rejectOverQuota(req, res, { limit, used, isGuest: !req.user });
   }
 
-  // What's left once this query completes.
-  res.locals.quota = {
-    limit,
-    remaining: Math.max(0, limit - used - 1),
-    resetsAt: quotaResetsAt().toISOString(),
-  } satisfies QuotaInfo;
+  res.locals.quota = { limit, used, resetsAt: quotaResetsAt() } satisfies QuotaSnapshot;
   next();
 });

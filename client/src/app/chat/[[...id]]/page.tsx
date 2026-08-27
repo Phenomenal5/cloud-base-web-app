@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { api, useLazyGetConversationQuery } from "@/store/api";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { streamAnswer, type QuotaState } from "@/lib/chatStream";
+import { streamAnswer } from "@/lib/chatStream";
+import type { UsageInfo } from "@/lib/types";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ConversationSidebar } from "@/components/chat/ConversationSidebar";
 import { ChatThread, type DisplayMessage } from "@/components/chat/ChatThread";
@@ -28,10 +29,16 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [quota, setQuota] = useState<QuotaState | null>(null);
   // Set once the daily allowance is spent, so the composer locks instead of
   // letting them send a question that can only fail.
   const [exhaustedUntil, setExhaustedUntil] = useState<string | null>(null);
+
+  // The usage indicator reads the getUsage cache entry, so the stream's figure is
+  // written straight into it rather than kept in a second copy here. upsert
+  // rather than update, so it also lands when nothing has fetched it yet.
+  const updateUsage = (usage: UsageInfo) => {
+    dispatch(api.util.upsertQueryData("getUsage", undefined, usage));
+  };
 
   const [loadConversation] = useLazyGetConversationQuery();
   const cancelStreamRef = useRef<(() => void) | null>(null);
@@ -141,9 +148,7 @@ const ChatPage = () => {
     setIsStreaming(true);
 
     cancelStreamRef.current = streamAnswer(text, activeConversationId, {
-      onMeta: (meta) => {
-        if (meta.quota) setQuota(meta.quota);
-      },
+      onUsage: updateUsage,
       onSources: (sources) => updateMessage(assistantMessageId, { sources }),
       onToken: (chunk) =>
         setMessages((previous) =>
@@ -181,9 +186,17 @@ const ChatPage = () => {
         setIsStreaming(false);
         // Remember the reset time so the composer explains itself instead of
         // letting them fire off another doomed question.
+        // The gate refuses before the handler runs, so no usage event is sent on
+        // this path — the indicator is brought to 100% from the refusal itself.
         if (error.code === "QUOTA_EXCEEDED" && error.resetsAt) {
           setExhaustedUntil(error.resetsAt);
-          setQuota({ limit: error.limit ?? null, remaining: 0, resetsAt: error.resetsAt });
+          updateUsage({
+            limit: error.limit ?? null,
+            used: error.used ?? error.limit ?? 0,
+            remaining: 0,
+            percentUsed: 100,
+            resetsAt: error.resetsAt,
+          });
         }
       },
     });
@@ -211,7 +224,6 @@ const ChatPage = () => {
           <ChatComposer
             onSend={sendMessage}
             disabled={isStreaming}
-            quota={quota}
             exhaustedUntil={exhaustedUntil}
           />
         </div>

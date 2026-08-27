@@ -113,6 +113,17 @@ export interface NotificationFeed {
   unread: number;
 }
 
+// Today's queries against the daily allowance. The UI shows `percentUsed` only —
+// a raw "18 of 30 left" turned the composer into a countdown clock. Admins are
+// unlimited, which comes back as nulls in every field but `used`.
+export interface UsageInfo {
+  limit: number | null;
+  used: number;
+  remaining: number | null;
+  percentUsed: number | null;
+  resetsAt: string | null;
+}
+
 export interface Tokens {
   accessToken: string;
   refreshToken: string;
