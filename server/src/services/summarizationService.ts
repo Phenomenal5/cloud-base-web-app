@@ -11,7 +11,7 @@ const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : nul
 const SUMMARY_MAX_TOKENS = 200;
 
 const SYSTEM_PROMPT =
-  "Summarize this aviation safety report in 2–3 plain-language sentences a trainee pilot can understand. Briefly explain any jargon. Use only what's in the report — do not add facts.";
+  "Summarize this aviation safety report in 2 to 3 plain-language sentences a trainee pilot can understand. Briefly explain any jargon. Use only what's in the report, do not add facts.";
 
 export async function summarizeReport(narrative: string): Promise<string> {
   if (!client) return fallbackSummary(narrative);

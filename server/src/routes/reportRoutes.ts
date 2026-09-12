@@ -9,7 +9,7 @@ const router = Router();
  * /reports:
  *   get:
  *     tags: [Reports]
- *     summary: Analyst triage list — filter by category, severity, date range
+ *     summary: Analyst triage list, filter by category, severity, date range
  *     description: ANALYST or ADMIN only (RBAC). Returns 403 for other roles.
  *     parameters:
  *       - { in: query, name: page, schema: { type: integer, minimum: 1 } }

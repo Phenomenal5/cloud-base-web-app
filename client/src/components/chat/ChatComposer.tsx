@@ -40,7 +40,7 @@ export const ChatComposer = ({ onSend, disabled, exhaustedUntil }: ChatComposerP
   // Usage lives behind the dial by the send button instead.
   const footerText = () => {
     if (exhaustedUntil) {
-      return `No questions left today — resets ${formatTimeUntil(exhaustedUntil)}, at ${formatLocalTime(exhaustedUntil)}.`;
+      return `No questions left today, resets ${formatTimeUntil(exhaustedUntil)}, at ${formatLocalTime(exhaustedUntil)}.`;
     }
     return "Answers are grounded in NASA ASRS reports.";
   };

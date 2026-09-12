@@ -50,7 +50,7 @@ const router = Router();
  *     summary: The caller's daily query usage
  *     description: >
  *       Today's usage against the caller's daily allowance, for the chat UI's
- *       usage indicator. Signed-in only — guests are counted per IP, which isn't
+ *       usage indicator. Signed-in only, guests are counted per IP, which isn't
  *       shown. `limit`, `remaining` and `percentUsed` are all `null` for admins,
  *       who are unlimited.
  *     responses:

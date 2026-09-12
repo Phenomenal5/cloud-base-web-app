@@ -35,7 +35,7 @@ export const QuotaNotice = ({ error }: QuotaNoticeProps) => {
           {isGuest && (
             <>
               <p className="mt-2 text-sm text-amber-800/90 dark:text-amber-200/70">
-                Signing up is free and gives you a much larger daily allowance — plus your
+                Signing up is free and gives you a much larger daily allowance, plus your
                 conversations get saved.
               </p>
               <div className="mt-3 flex flex-wrap gap-2">

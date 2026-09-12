@@ -26,7 +26,7 @@ const ResetPasswordForm = () => {
       try {
         await resetPassword(values).unwrap();
         // A reset revokes every session, so there's nothing to route into.
-        toast.success("Password reset — please sign in");
+        toast.success("Password reset, please sign in");
         router.push("/login");
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Invalid or expired code."));

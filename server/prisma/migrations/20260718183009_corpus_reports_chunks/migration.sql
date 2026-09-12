@@ -36,5 +36,5 @@ CREATE INDEX "report_chunks_reportId_idx" ON "report_chunks"("reportId");
 ALTER TABLE "report_chunks" ADD CONSTRAINT "report_chunks_reportId_fkey" FOREIGN KEY ("reportId") REFERENCES "reports"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- HNSW index for fast approximate nearest-neighbour search over embeddings,
--- using cosine distance (operator <=>). Prisma can't express this — hand-added.
+-- using cosine distance (operator <=>). Prisma can't express this, hand-added.
 CREATE INDEX "report_chunks_embedding_hnsw_idx" ON "report_chunks" USING hnsw (embedding vector_cosine_ops);

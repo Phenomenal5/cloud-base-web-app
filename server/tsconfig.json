@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     // ── Module system: Node-native ESM ("type": "module"). Relative imports
-    //    must carry a .js extension, even in .ts source — that's NodeNext.
+    //    must carry a .js extension, even in .ts source, that's NodeNext.
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "target": "ES2022",

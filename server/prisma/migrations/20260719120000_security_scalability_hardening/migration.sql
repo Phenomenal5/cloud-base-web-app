@@ -1,6 +1,6 @@
 -- ─── Scalability indexes + metrics rollup table ───────
--- Hand-authored (like the HNSW index migration) so the pg_trgm GIN index — which
--- Prisma's schema DSL can't express — ships in the same migration as the
+-- Hand-authored (like the HNSW index migration) so the pg_trgm GIN index, which
+-- Prisma's schema DSL can't express, ships in the same migration as the
 -- Prisma-managed index/table changes.
 
 -- Swap Conversation/Message single-column indexes for the composites that match
@@ -23,7 +23,7 @@ CREATE INDEX "messages_conversationId_createdAt_idx" ON "messages"("conversation
 -- CreateIndex
 CREATE INDEX "reports_reportDate_idx" ON "reports"("reportDate");
 
--- Trigram GIN for the conversation search (title/content ILIKE) — a btree can't
+-- Trigram GIN for the conversation search (title/content ILIKE), a btree can't
 -- accelerate `contains`. Not expressible in schema.prisma, so it's added here.
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX "messages_content_trgm_idx" ON "messages" USING gin ("content" gin_trgm_ops);

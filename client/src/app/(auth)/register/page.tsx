@@ -23,7 +23,7 @@ const RegisterPage = () => {
     onSubmit: async (values) => {
       try {
         await register(values).unwrap();
-        toast.success("Account created — check your email for a code");
+        toast.success("Account created, check your email for a code");
         // Registering doesn't create a session; entering the emailed code does.
         router.push(`/verify-email?email=${encodeURIComponent(values.email)}`);
       } catch (error) {

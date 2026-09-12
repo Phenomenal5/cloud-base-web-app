@@ -65,13 +65,13 @@ export const UsageIndicator = () => {
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
           {/* Opens upward: the composer sits at the bottom of the viewport, so a
-              panel hung below it would be off-screen. */}
+ panel hung below it would be off-screen. */}
           <div className="absolute bottom-full right-0 z-20 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 shadow-lg">
             <p className="text-xs font-medium text-muted">Daily usage</p>
 
             {isUnlimited ? (
               <p className="mt-1.5 text-sm">
-                Unlimited — your account isn&apos;t subject to a daily allowance.
+                Unlimited, your account isn&apos;t subject to a daily allowance.
               </p>
             ) : (
               <>

@@ -12,7 +12,7 @@ dist
 dist-ssr
 *.local
 
-# Env — never commit local env files (holds only VITE_API_URL today, but keep it out)
+# Env, never commit local env files (holds only VITE_API_URL today, but keep it out)
 .env
 .env.*
 !.env.example

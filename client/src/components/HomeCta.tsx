@@ -33,7 +33,7 @@ export const HomeCta = () => {
       </Link>
 
       <p className="max-w-sm text-xs text-slate-500 dark:text-slate-400">
-        No account needed to try it. Your conversations won&apos;t be saved in guest mode — sign in
+        No account needed to try it. Your conversations won&apos;t be saved in guest mode, sign in
         to keep your chat history.
       </p>
 

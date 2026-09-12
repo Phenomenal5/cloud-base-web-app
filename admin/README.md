@@ -1,6 +1,6 @@
-# Nasight — admin dashboard
+# Nasight, admin dashboard
 
-A small React + Vite SPA for running the system: watching usage, managing accounts, loading new reports into the corpus, and sending announcements. It's a separate app from `client/` on purpose — admin tooling has a different audience, a different risk profile, and no reason to ship in the bundle every visitor downloads.
+A small React + Vite SPA for running the system: watching usage, managing accounts, loading new reports into the corpus, and sending announcements. It's a separate app from `client/` on purpose, admin tooling has a different audience, a different risk profile, and no reason to ship in the bundle every visitor downloads.
 
 Everything here is **ADMIN-only**. The API enforces that with a single `protect → authorize("ADMIN")` guard across the whole `/api/admin` router, so a non-admin signing in gets nothing regardless of what the UI does.
 
@@ -16,7 +16,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Runs on [http://localhost:3001](http://localhost:3001) — the port is pinned in `vite.config.ts` rather than left to Vite's default, because the API's CORS allowlist expects it there.
+Runs on [http://localhost:3001](http://localhost:3001), the port is pinned in `vite.config.ts` rather than left to Vite's default, because the API's CORS allowlist expects it there.
 
 One environment variable:
 
@@ -32,13 +32,13 @@ You'll need an account with the `ADMIN` role to get past the login screen. If yo
 
 ## The four screens
 
-**Dashboard** — the overview: total users, reports in the corpus, queries run, and tokens consumed. The token figure is the one to watch; it's what your OpenAI bill is made of.
+**Dashboard**: the overview: total users, reports in the corpus, queries run, and tokens consumed. The token figure is the one to watch; it's what your OpenAI bill is made of.
 
-**Users** — every account, filterable by role and status. You can promote or demote between `TRAINEE`, `ANALYST` and `ADMIN`, and block or unblock people. Role changes take effect on the user's next request.
+**Users**: every account, filterable by role and status. You can promote or demote between `TRAINEE`, `ANALYST` and `ADMIN`, and block or unblock people. Role changes take effect on the user's next request.
 
-**Ingestion** — upload an ASRS CSV to add reports to the corpus. The upload returns straight away and the job list below polls every 4 seconds so you can watch it move `QUEUED → PROCESSING → COMPLETED`, with row and chunk counts as it goes. A failure surfaces the error message on the job row.
+**Ingestion**: upload an ASRS CSV to add reports to the corpus. The upload returns straight away and the job list below polls every 4 seconds so you can watch it move `QUEUED → PROCESSING → COMPLETED`, with row and chunk counts as it goes. A failure surfaces the error message on the job row.
 
-**Broadcasts** — send an in-app notification to every user at once. It writes one notification row per user; they see it in the bell in the main app. It does not send email.
+**Broadcasts**: send an in-app notification to every user at once. It writes one notification row per user; they see it in the bell in the main app. It does not send email.
 
 ---
 
@@ -57,7 +57,7 @@ src/
 └── lib/                   # axios, config, cn, types, apiError
 ```
 
-Style conventions here differ from `client/` — **no semicolons, single quotes**, `@` aliased to `src`. Match the file you're editing.
+Style conventions here differ from `client/`: **no semicolons, single quotes**, `@` aliased to `src`. Match the file you're editing.
 
 Auth works the same way as the user app: httpOnly cookies, `withCredentials`, and a single-flight refresh on 401 so concurrent requests don't race each other into a logout.
 
@@ -70,7 +70,7 @@ Auth works the same way as the user app: httpOnly cookies, `withCredentials`, an
 | `npm run dev` | Dev server on :3001 |
 | `npm run build` | `tsc -b` then a production Vite build |
 | `npm run preview` | Serve the built output locally |
-| `npm run check` | typecheck + lint + prettier — run before committing |
+| `npm run check` | typecheck + lint + prettier, run before committing |
 | `npm run lint:fix` / `npm run format` | Fix things automatically |
 
 ---

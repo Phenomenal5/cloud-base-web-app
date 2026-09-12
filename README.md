@@ -1,12 +1,12 @@
 # Nasight
 
-**Ask about aviation safety in plain English. Get answers grounded in real NASA ASRS incident reports — with sources you can check.**
+**Ask about aviation safety in plain English. Get answers grounded in real NASA ASRS incident reports, with sources you can check.**
 
 Nasight is a full-stack web application that makes the NASA Aviation Safety Reporting System searchable by conversation instead of by keyword. It's built as three deployable applications around one Postgres database, and this file is the map. Each application has its own README with the detail:
 
-- **[`server/`](server/README.md)** — Express API + background worker. Auth, vector search, the RAG pipeline, ingestion queue.
-- **[`client/`](client/README.md)** — Next.js app for end users. Chat, report browsing, accounts.
-- **[`admin/`](admin/README.md)** — React + Vite dashboard. Metrics, user management, corpus uploads, broadcasts.
+- **[`server/`](server/README.md)**: Express API + background worker. Auth, vector search, the RAG pipeline, ingestion queue.
+- **[`client/`](client/README.md)**: Next.js app for end users. Chat, report browsing, accounts.
+- **[`admin/`](admin/README.md)**: React + Vite dashboard. Metrics, user management, corpus uploads, broadcasts.
 
 For the full technical write-up see [`documentation.md`](documentation.md); for requirements and scope see [`PRD.md`](PRD.md).
 
@@ -22,7 +22,7 @@ The ASRS holds over two million confidential incident reports filed voluntarily 
 
 ## The approach
 
-Report narratives are chunked, embedded, and stored in Postgres with `pgvector`. A question gets embedded the same way, matched against those chunks by cosine similarity, and the retrieved text — and *only* the retrieved text — is handed to a language model to answer from.
+Report narratives are chunked, embedded, and stored in Postgres with `pgvector`. A question gets embedded the same way, matched against those chunks by cosine similarity, and the retrieved text, and *only* the retrieved text, is handed to a language model to answer from.
 
 That constraint is the whole design. The model isn't a source of aviation knowledge here; it's a summarizer of retrieved reports. Every answer carries the ASRS Accession Numbers it drew from, so a claim can always be traced back to a real filed report. When nothing relevant is retrieved, the honest "no relevant reports found" answer is returned rather than an invented one.
 
@@ -74,7 +74,7 @@ On top of that: multi-turn conversations where follow-ups are rewritten to stand
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-Four processes, three codebases. The worker isn't a separate project — it's a second entry point (`server/src/worker.ts`) sharing the API's code and database, run as its own process so long ingestion jobs never sit in the request path. In production it deploys as a separate service.
+Four processes, three codebases. The worker isn't a separate project, it's a second entry point (`server/src/worker.ts`) sharing the API's code and database, run as its own process so long ingestion jobs never sit in the request path. In production it deploys as a separate service.
 
 The frontends talk only to the API. Neither one holds a database connection, an API key, or any business logic.
 
@@ -124,7 +124,7 @@ Three details worth calling out:
 
 ## The data model
 
-Fourteen tables in four functional zones — identity, corpus, conversation, and activity/metrics. The full diagram is in [`Nasight-ERD.drawio`](Nasight-ERD.drawio) (open it in draw.io) with a rendered copy alongside it.
+Fourteen tables in four functional zones, identity, corpus, conversation, and activity/metrics. The full diagram is in [`Nasight-ERD.drawio`](Nasight-ERD.drawio) (open it in draw.io) with a rendered copy alongside it.
 
 ```mermaid
 erDiagram
@@ -227,7 +227,7 @@ erDiagram
     }
 ```
 
-`TokenUsage` and `DailyMetric` deliberately have no foreign keys — they're an append-only audit trail that survives user deletion, rolled up nightly so the admin dashboard doesn't aggregate over raw history forever.
+`TokenUsage` and `DailyMetric` deliberately have no foreign keys, they're an append-only audit trail that survives user deletion, rolled up nightly so the admin dashboard doesn't aggregate over raw history forever.
 
 ---
 
@@ -248,9 +248,9 @@ Quotas are counted per UTC day and enforced server-side in middleware, not in th
 ### Security
 
 - Passwords hashed with **bcrypt, 12 rounds**.
-- Refresh tokens, email verification codes and password reset codes are stored as **SHA-256 hashes** — a database leak doesn't hand over usable credentials.
+- Refresh tokens, email verification codes and password reset codes are stored as **SHA-256 hashes**: a database leak doesn't hand over usable credentials.
 - Sessions are short-lived JWT access tokens (15 min) plus rotating refresh tokens (30 days), both in **httpOnly cookies**. No token is ever readable from JavaScript.
-- Google OAuth runs through Passport **statelessly** (`session: false`) — Passport performs the code exchange, our callback issues the same cookies as a password login.
+- Google OAuth runs through Passport **statelessly** (`session: false`), Passport performs the code exchange, our callback issues the same cookies as a password login.
 - `helmet`, an explicit CORS origin allowlist (never a wildcard), and rate limiting on auth routes.
 - Retrieval uses an **HNSW index** on cosine distance, so similarity search stays fast as the corpus grows.
 
@@ -260,7 +260,7 @@ Quotas are counted per UTC day and enforced server-side in middleware, not in th
 
 You'll need Node 20+ and a Postgres 15+ database with `pgvector`. Neon's free tier is what this was developed against.
 
-Each app has its own setup section — [server](server/README.md), [client](client/README.md), [admin](admin/README.md) — but the short version is:
+Each app has its own setup section, [server](server/README.md), [client](client/README.md), [admin](admin/README.md), but the short version is:
 
 ```bash
 # 1. Database + API
@@ -285,7 +285,7 @@ cd client && npm run dev        # user app → http://localhost:3000
 cd admin  && npm run dev        # admin    → http://localhost:3001
 ```
 
-Only `DATABASE_URL` and `JWT_ACCESS_SECRET` are truly required — the server refuses to boot without them. Without `OPENAI_API_KEY` the pipeline still runs on a deterministic dev stub (useful for working on everything that isn't the AI); without SMTP credentials, verification codes are printed to the API console instead of emailed.
+Only `DATABASE_URL` and `JWT_ACCESS_SECRET` are truly required, the server refuses to boot without them. Without `OPENAI_API_KEY` the pipeline still runs on a deterministic dev stub (useful for working on everything that isn't the AI); without SMTP credentials, verification codes are printed to the API console instead of emailed.
 
 Interactive API docs are at `http://localhost:8000/api/docs` in non-production.
 
@@ -327,9 +327,9 @@ Everything is under `/api`.
 | **System** | `GET /health` · `GET /docs` (non-production only) |
 | **Auth** `/auth` | `POST /register` · `POST /verify-email` · `POST /login` · `POST /forgot-password` · `POST /reset-password` · `POST /refresh` · `POST /logout` · `GET /me` · `GET /google` · `GET /google/callback` |
 | **Users** `/users` | `PATCH /me` · `PUT /me/avatar` · `DELETE /me/avatar` |
-| **Q&A** `/ask` | `GET /` — grounded answer streamed over SSE; auth optional, quota enforced |
+| **Q&A** `/ask` | `GET /`: grounded answer streamed over SSE; auth optional, quota enforced |
 | **Conversations** `/conversations` | `GET /` · `GET /:id` · `PATCH /:id` (pin/archive/rename) · `DELETE /:id` |
-| **Reports** `/reports` | `GET /` — filterable triage list, analyst/admin only · `GET /:id` — any signed-in user |
+| **Reports** `/reports` | `GET /`: filterable triage list, analyst/admin only · `GET /:id`: any signed-in user |
 | **Notifications** `/notifications` | `GET /` · `PATCH /read-all` · `PATCH /:id/read` |
 | **Admin** `/admin` | `GET /metrics` · `GET /users` · `PATCH /users/:id/role` · `PATCH /users/:id/status` · `POST /notifications` · `POST /ingestions` · `GET /ingestions` · `GET /ingestions/:id` |
 
@@ -341,11 +341,11 @@ Two things work implicitly rather than through their own endpoint: **conversatio
 
 The project was built to support a paper on applied RAG in a specialist safety domain. The parts with something to say:
 
-1. **Hallucination control by construction** — enforced citation and a similarity floor, so an unanswerable question produces a refusal instead of a plausible fabrication.
-2. **Multi-turn retrieval via query rewriting** — measurable retrieval accuracy difference between raw follow-ups and rewritten standalone queries.
-3. **HNSW indexing in pgvector** — similarity search latency over thousands of chunks, without a dedicated vector database.
-4. **Two-layer cost governance** — per-IP limits for anonymous traffic, per-role daily quotas for accounts, plus hard output-token caps in code (not environment variables, so a config change can't lift the ceiling).
-5. **Decoupled ingestion** — a queue-backed worker keeping embedding workloads off the streaming request path.
+1. **Hallucination control by construction**: enforced citation and a similarity floor, so an unanswerable question produces a refusal instead of a plausible fabrication.
+2. **Multi-turn retrieval via query rewriting**: measurable retrieval accuracy difference between raw follow-ups and rewritten standalone queries.
+3. **HNSW indexing in pgvector**: similarity search latency over thousands of chunks, without a dedicated vector database.
+4. **Two-layer cost governance**: per-IP limits for anonymous traffic, per-role daily quotas for accounts, plus hard output-token caps in code (not environment variables, so a config change can't lift the ceiling).
+5. **Decoupled ingestion**: a queue-backed worker keeping embedding workloads off the streaming request path.
 
 ---
 

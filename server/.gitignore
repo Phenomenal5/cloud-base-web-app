@@ -5,9 +5,9 @@ node_modules
 
 /src/generated/prisma
 
-# tsc output — built inside the image, never committed
+# tsc output, built inside the image, never committed
 /dist
 
-# Uploaded files (avatars) — served from disk, not committed
+# Uploaded files (avatars), served from disk, not committed
 /uploads
 

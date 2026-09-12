@@ -36,7 +36,7 @@ const router = Router();
  *     tags: [Auth]
  *     summary: Register with email + password (emails a 6-digit verification code)
  *     description: >
- *       Creates an unverified account and emails a code — no session yet. If the email
+ *       Creates an unverified account and emails a code, no session yet. If the email
  *       belongs to an unverified account, its credentials are refreshed and a new code
  *       is sent (200). A verified email returns 409.
  *     security: []
@@ -53,7 +53,7 @@ const router = Router();
  *               displayName: { type: string, maxLength: 80 }
  *     responses:
  *       201: { description: Account created, code sent }
- *       200: { description: Existing unverified account — new code sent }
+ *       200: { description: Existing unverified account, new code sent }
  *       409: { description: Email already registered & verified }
  *       422: { $ref: '#/components/responses/ValidationError' }
  *       429: { $ref: '#/components/responses/TooManyRequests' }
@@ -79,7 +79,7 @@ router.post("/register", authLimiter, validate(registerSchema), register);
  *               code: { type: string, pattern: '^\d{6}$' }
  *     responses:
  *       200:
- *         description: Verified — session cookies set, tokens returned
+ *         description: Verified, session cookies set, tokens returned
  *         content:
  *           application/json:
  *             schema:
@@ -101,7 +101,7 @@ router.post("/verify-email", authLimiter, validate(verifyEmailSchema), verifyEma
  * /auth/resend-verification:
  *   post:
  *     tags: [Auth]
- *     summary: Resend a verification code (generic response — no account enumeration)
+ *     summary: Resend a verification code (generic response, no account enumeration)
  *     security: []
  *     requestBody:
  *       required: true
@@ -140,7 +140,7 @@ router.post(
  *               password: { type: string }
  *     responses:
  *       200:
- *         description: Logged in — cookies set, tokens returned
+ *         description: Logged in, cookies set, tokens returned
  *         content:
  *           application/json:
  *             schema:
@@ -196,7 +196,7 @@ router.post("/forgot-password", authLimiter, validate(forgotPasswordSchema), for
  *               code: { type: string, pattern: '^\d{6}$' }
  *               newPassword: { type: string, minLength: 8, maxLength: 72 }
  *     responses:
- *       200: { description: Password reset — log in again }
+ *       200: { description: Password reset, log in again }
  *       400: { description: Invalid or expired code }
  */
 router.post("/reset-password", authLimiter, validate(resetPasswordSchema), resetPassword);
@@ -282,7 +282,7 @@ router.get(
  * /auth/google/callback:
  *   get:
  *     tags: [Auth]
- *     summary: Google OAuth callback — issues a session, redirects to the frontend
+ *     summary: Google OAuth callback, issues a session, redirects to the frontend
  *     security: []
  *     responses:
  *       302: { description: Redirect to the frontend (success or failure URL) }

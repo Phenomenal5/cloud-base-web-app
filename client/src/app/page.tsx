@@ -14,7 +14,7 @@ const Home = () => (
       <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Nasight</h1>
       <p className="mx-auto mt-3 max-w-md text-balance text-slate-600 dark:text-slate-400">
         Ask about aviation safety in plain English. Get answers grounded in real NASA ASRS incident
-        reports — with sources you can check.
+        reports, with sources you can check.
       </p>
       <HomeCta />
     </div>

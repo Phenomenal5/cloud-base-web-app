@@ -2,7 +2,7 @@
 #
 #   docker compose up -d --build
 #
-# There's no database here — DATABASE_URL in .env points at the hosted Postgres
+# There's no database here, DATABASE_URL in .env points at the hosted Postgres
 # (Neon), same as `npm run dev` does.
 
 name: nasight
@@ -33,7 +33,7 @@ services:
     # Migrations run here and only here, so the worker can't race them. The binary
     # is called directly rather than through npx, which needs a writable npm cache.
     command: sh -c "./node_modules/.bin/prisma migrate deploy && node dist/server.js"
-    # Host port only — inside the container it's always 8000. Set API_PORT when
+    # Host port only, inside the container it's always 8000. Set API_PORT when
     # the host already has something on 8000, which on a shared box it usually does.
     ports:
       - "${API_PORT:-8000}:8000"

@@ -58,7 +58,7 @@ export const IngestionPage = () => {
     <div className='mx-auto w-full max-w-4xl px-6 py-8'>
       <h1 className='text-xl font-semibold'>Corpus ingestion</h1>
       <p className='mt-1 text-sm text-muted'>
-        Upload an ASRS CSV. It&apos;s processed in the background — no need to wait.
+        Upload an ASRS CSV. It&apos;s processed in the background, no need to wait.
       </p>
 
       <div className='mt-4'>
@@ -128,7 +128,7 @@ export const IngestionPage = () => {
                       ? `${job.reportsIngested} reports · ${job.chunksCreated} chunks`
                       : job.status === 'FAILED'
                         ? (job.error ?? 'Failed')
-                        : '—'}
+                        : ''}
                   </td>
                 </tr>
               ))}

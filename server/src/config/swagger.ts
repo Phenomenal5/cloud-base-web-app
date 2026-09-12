@@ -14,7 +14,7 @@ const options: swaggerJsdoc.Options = {
         "Grounded, retrieval-augmented API over NASA ASRS aviation safety reports.\n\n" +
         "**Auth**: a JWT access token in the httpOnly `accessToken` cookie (browser) or an " +
         "`Authorization: Bearer` header (native clients). **Ownership**: user-owned resources " +
-        "(conversations, notifications) are scoped to the caller — a non-owned id returns **404**, " +
+        "(conversations, notifications) are scoped to the caller, a non-owned id returns **404**, " +
         "never another user's data (IDOR-safe).",
     },
     servers: [{ url: `http://localhost:${env.port}/api`, description: "Local" }],

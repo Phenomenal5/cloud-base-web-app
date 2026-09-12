@@ -52,7 +52,7 @@ router.patch("/read-all", markAllRead);
  *   patch:
  *     tags: [Notifications]
  *     summary: Mark one notification read
- *     description: Ownership-scoped — a notification you don't own returns 404.
+ *     description: Ownership-scoped, a notification you don't own returns 404.
  *     parameters:
  *       - in: path
  *         name: id

@@ -149,7 +149,7 @@ function codeEmailHtml({ heading, lead, code, minutes, preheader }: CodeEmailOpt
             <tr>
               <td style="border-top:1px solid ${BRAND.border};padding:16px 32px;
                          font-family:${FONT_STACK};font-size:12px;color:${BRAND.muted};">
-                Nasight — aviation safety, in plain language.
+                Nasight, aviation safety, in plain language.
               </td>
             </tr>
           </table>

@@ -50,7 +50,7 @@ router.get("/", listConversations);
  *   get:
  *     tags: [Conversations]
  *     summary: Get one conversation with its messages
- *     description: Ownership-scoped — a conversation you don't own returns 404 (IDOR-safe).
+ *     description: Ownership-scoped, a conversation you don't own returns 404 (IDOR-safe).
  *     parameters:
  *       - in: path
  *         name: id
@@ -82,7 +82,7 @@ router.get("/:id", getConversation);
  *   patch:
  *     tags: [Conversations]
  *     summary: Rename, pin, or archive a conversation
- *     description: Ownership-scoped — non-owned id returns 404.
+ *     description: Ownership-scoped, non-owned id returns 404.
  *     parameters:
  *       - in: path
  *         name: id
@@ -112,7 +112,7 @@ router.patch("/:id", validate(updateConversationSchema), updateConversation);
  *   delete:
  *     tags: [Conversations]
  *     summary: Delete a conversation (cascades to messages)
- *     description: Ownership-scoped — non-owned id returns 404.
+ *     description: Ownership-scoped, non-owned id returns 404.
  *     parameters:
  *       - in: path
  *         name: id

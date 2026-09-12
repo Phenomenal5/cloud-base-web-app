@@ -20,6 +20,6 @@ export default defineConfig([
       globals: globals.browser,
     },
   },
-  // Turn off rules that conflict with Prettier — must be last.
+  // Turn off rules that conflict with Prettier, must be last.
   eslintConfigPrettier,
 ])
