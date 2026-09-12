@@ -18,12 +18,7 @@ import {
   addMessage,
   titleFromMessage,
 } from "../services/conversationService.js";
-import {
-  logQuery,
-  dailyLimitFor,
-  usedToday,
-  quotaResetsAt,
-} from "../services/queryLogService.js";
+import { logQuery, dailyLimitFor, usedToday, quotaResetsAt } from "../services/queryLogService.js";
 import { clientIp, buildQuotaInfo, type QuotaSnapshot } from "../middlewares/quota.js";
 
 const MAX_QUERY_LENGTH = 500;
@@ -33,16 +28,15 @@ function logStreamError(error: unknown): void {
   logger.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
 }
 
-// NOTE: usage has to go out BEFORE done or error. The browser closes the
-// EventSource the instant it sees either one, so an event sent after them is
-// written into a socket nobody is reading.
+// Usage must go out BEFORE done or error. The browser closes the EventSource on
+// either one, so anything sent after goes into a socket nobody reads.
 function sendUsage(res: Response, consumed: number): void {
   sendEvent(res, "usage", buildQuotaInfo(res.locals.quota as QuotaSnapshot, consumed));
 }
 
-// The audit trail doubles as the quota counter, so a failure to write it must not
-// take the answer down with it. Returns how many queries were actually charged —
-// 0 on failure, so the usage figure we report matches what's really in the table.
+// The audit trail doubles as the quota counter, so a failed write must not take
+// the answer with it. Returns how many queries were charged, 0 on failure, so
+// the reported usage matches the table.
 async function recordQuery(entry: Parameters<typeof logQuery>[0]): Promise<number> {
   try {
     await logQuery(entry);

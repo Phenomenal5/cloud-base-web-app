@@ -5,9 +5,8 @@ import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
 import { defineConfig, globalIgnores } from "eslint/config";
 
-// Flat config (ESLint 10). Type-aware linting is intentionally NOT enabled to
-// keep lint fast and independent of tsconfig `project` wiring — `npm run
-// typecheck` (tsc) covers type correctness.
+// Flat config (ESLint 10). No type-aware linting, to keep lint fast and free of
+// tsconfig `project` wiring. `npm run typecheck` covers type correctness.
 export default defineConfig([
   // Build output and the generated Prisma client are never linted.
   globalIgnores(["dist", "src/generated"]),
@@ -29,6 +28,6 @@ export default defineConfig([
       ],
     },
   },
-  // Turn off rules that conflict with Prettier — must be last.
+  // Turn off rules that conflict with Prettier. Must be last.
   eslintConfigPrettier,
 ]);

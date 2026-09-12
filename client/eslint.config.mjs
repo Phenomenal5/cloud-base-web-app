@@ -14,7 +14,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
-  // Turn off rules that conflict with Prettier — must be last.
+  // Turn off rules that conflict with Prettier. Must be last.
   eslintConfigPrettier,
 ]);
 

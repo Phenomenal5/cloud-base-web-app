@@ -4,13 +4,11 @@ import { prisma } from "./prisma.js";
 import { env, isGoogleOAuthEnabled } from "./env.js";
 import { logger } from "./logger.js";
 
-// Passport only runs the OAuth code exchange. We don't use passport sessions;
-// the callback controller mints our own JWT cookie session so that credential
-// login and Google login end up in exactly the same place.
+// Passport runs the OAuth code exchange only. No passport sessions: the callback
+// controller mints our own JWT cookie, so credential and Google login converge.
 //
-// NOTE: this is the confidential-client code flow, where the client secret
-// secures the exchange. PKCE and state would need somewhere to keep the verifier
-// across the redirect, which means adding a session store.
+// Confidential-client code flow, secured by the client secret. PKCE would need a
+// session store to hold the verifier across the redirect.
 
 export function configurePassport(): void {
   if (!isGoogleOAuthEnabled) {
@@ -36,9 +34,8 @@ export function configurePassport(): void {
   );
 }
 
-// NOTE: only trust the address when Google says it verified it. Linking on an
-// unverified address would let anyone who can set that address on a Google
-// account take over the matching local account.
+// Only trust the address if Google verified it. Linking on an unverified one
+// lets anyone who can set that address take over the matching local account.
 function verifiedEmail(profile: Profile): string | undefined {
   const claims = profile._json as { email?: string; email_verified?: boolean };
   if (!claims.email_verified) return undefined;

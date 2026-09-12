@@ -14,8 +14,8 @@ export interface AccessTokenPayload {
 }
 
 export function signAccessToken(payload: AccessTokenPayload): string {
-  // NOTE: pin the algorithm on both sign and verify. Letting the token's own
-  // header choose is how alg-confusion and "alg: none" attacks get in.
+  // Pin the algorithm on sign and verify. Letting the token header choose is how
+  // alg-confusion and "alg: none" attacks get in.
   return jwt.sign(payload, env.jwtAccessSecret, {
     expiresIn: env.jwtAccessTtlSeconds,
     algorithm: "HS256",

@@ -6,9 +6,8 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// NOTE: the three formatters below read the clock at render time, so they must
-// only run on the client. Rendering one during SSR bakes the server's clock into
-// the HTML and mismatches on hydration.
+// The three formatters below read the clock at render time, so they're client
+// only. Running one in SSR bakes the server's clock into the HTML.
 
 // "just now" / "5m ago" / "3d ago", falling back to a short date past a week
 // where "8d ago" stops being useful.

@@ -23,10 +23,9 @@ export interface IngestResult {
   skipped: number;
 }
 
-// The typed client can't write the embedding column (it's Unsupported()), so
-// chunks go in through raw SQL. NOTE: built as one multi-row INSERT rather than
-// one statement per chunk. A single large report can produce dozens of chunks,
-// and a round trip each is what makes a big ingestion crawl. Values are still
+// The typed client can't write the embedding column (Unsupported()), so chunks
+// go in through raw SQL. One multi-row INSERT, not one per chunk: a large report
+// makes dozens, and a round trip each is what makes ingestion crawl. Still
 // parameterized, not interpolated.
 async function insertChunks(reportId: string, pieces: string[], vectors: number[][]) {
   const rows = pieces.map(

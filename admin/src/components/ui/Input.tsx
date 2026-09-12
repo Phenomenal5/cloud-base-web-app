@@ -7,8 +7,7 @@ interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   ref?: Ref<HTMLInputElement>
 }
 
-// NOTE: no forwardRef. On React 19 `ref` is an ordinary prop for function
-// components, and forwardRef is deprecated.
+// No forwardRef. On React 19 `ref` is an ordinary prop and forwardRef is deprecated.
 export const Input = ({ label, error, id, className, ref, ...props }: InputProps) => {
   // Fall back to the field name so the label still points at the right input.
   const inputId = id ?? props.name

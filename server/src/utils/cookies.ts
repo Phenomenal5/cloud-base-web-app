@@ -35,8 +35,7 @@ export function setAuthCookies(
 }
 
 export function clearAuthCookies(res: Response): void {
-  // NOTE: the options have to match how the cookies were set or the browser
-  // won't clear them.
+  // Options must match how the cookies were set, or the browser won't clear them.
   res.clearCookie(COOKIE_NAMES.ACCESS, baseOptions());
   res.clearCookie(COOKIE_NAMES.REFRESH, baseOptions());
 }

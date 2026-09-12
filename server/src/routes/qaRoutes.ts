@@ -74,8 +74,8 @@ const router = Router();
  *                         resetsAt: { type: string, format: date-time, nullable: true }
  *       401: { $ref: '#/components/responses/Unauthorized' }
  */
-// NOTE: declared before "/" only for readability — Express matches on the full
-// path, so the order of these two doesn't actually matter.
+// Before "/" for readability only. Express matches the full path, so order
+// doesn't matter here.
 router.get("/usage", protect, getUsage);
 
 router.get("/", optionalAuth, enforceQueryQuota, ask);

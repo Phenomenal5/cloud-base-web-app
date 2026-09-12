@@ -1,12 +1,11 @@
 import { Fragment, type ReactNode } from "react";
 
-// The assistant answers in light Markdown (bold, short lists, plain paragraphs;
-// see the system prompt in server/src/services/llmService.ts). The chat used to
-// print message.content as raw text, so that showed up as literal "**" and "---".
+// The assistant answers in light Markdown (see the system prompt in
+// server/src/services/llmService.ts). Raw text rendering showed literal "**".
 //
-// Deliberately not react-markdown: the output is a small known subset, so this
-// keeps the bundle lean and adds no dependency. It builds React nodes and never
-// uses dangerouslySetInnerHTML, so retrieved report text can't inject HTML.
+// Not react-markdown: the output is a small known subset, so this keeps the
+// bundle lean. Builds React nodes, never dangerouslySetInnerHTML, so retrieved
+// report text can't inject HTML.
 
 const BULLET = /^\s*[-*]\s+/;
 const ORDERED = /^\s*\d+\.\s+/;

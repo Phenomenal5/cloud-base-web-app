@@ -93,9 +93,8 @@ export const NotificationBell = () => {
                 <ul className="flex flex-col gap-0.5">
                   {notifications.map((notification) => (
                     <li key={notification.id}>
-                      {/* NOTE: spans, not divs. A <button> may only contain
-                          phrasing content, and a div inside one is invalid HTML
-                          that browsers recover from unpredictably. */}
+                      {/* Spans, not divs. A <button> takes phrasing content
+                          only; a div inside one is invalid HTML. */}
                       <button
                         type="button"
                         onClick={() => handleRead(notification)}

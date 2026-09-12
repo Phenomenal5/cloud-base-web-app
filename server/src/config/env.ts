@@ -113,8 +113,8 @@ export const env = {
     "GOOGLE_CALLBACK_URL",
     `http://localhost:${port}/api/auth/google/callback`,
   ),
-  // NOTE: must match the client's route. The page is app/(auth)/oauth-callback,
-  // so this is /oauth-callback, not /auth/callback.
+  // Must match the client route: the page is app/(auth)/oauth-callback, so this
+  // is /oauth-callback, not /auth/callback.
   oauthSuccessRedirect: opt("OAUTH_SUCCESS_REDIRECT", "http://localhost:3000/oauth-callback"),
   oauthFailureRedirect: opt("OAUTH_FAILURE_REDIRECT", "http://localhost:3000/login?error=oauth"),
 

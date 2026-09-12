@@ -1,12 +1,11 @@
 import { config } from "./config";
 import type { Source, Citation, UsageInfo } from "./types";
 
-// Opens the SSE connection to /ask and hands its named events to callbacks.
-// Returns a function that closes the stream, for cancelling a request.
+// Opens the SSE connection to /ask and routes its named events to callbacks.
+// Returns a closer, for cancelling.
 //
-// EventSource rather than axios, because it's the browser's native SSE consumer.
-// withCredentials sends the auth cookie, so signed-in users get a persisted
-// conversation and guests stream without one.
+// EventSource, not axios: it's the browser's native SSE consumer. withCredentials
+// sends the auth cookie, so signed-in users get a persisted conversation.
 
 export interface StreamMeta {
   conversationId?: string;
@@ -34,10 +33,8 @@ interface StreamCallbacks {
   onMeta?: (meta: StreamMeta) => void;
   onSources?: (sources: Source[]) => void;
   onToken?: (text: string) => void;
-  // Arrives just before done/error, and reports what the turn actually cost.
-  // NOTE: not every turn costs one — small talk is answered without spending an
-  // allowance — which is why this is a figure from the server and never a local
-  // decrement.
+  // Arrives just before done/error with what the turn actually cost. Small talk
+  // spends no allowance, so this comes from the server, never a local decrement.
   onUsage?: (usage: UsageInfo) => void;
   onDone?: (done: StreamDone) => void;
   onError?: (error: StreamError) => void;
@@ -79,11 +76,10 @@ export function streamAnswer(
     eventSource.close();
   });
 
-  // NOTE: "error" fires for two different things. A server-sent `event: error`
-  // arrives with .data; a transport error, including the normal socket close
-  // after "done", arrives without it. Anything the server wants to explain
-  // (quota exhausted, upstream down) comes with .data, which is exactly why the
-  // server sends refusals as events instead of as a 429 the browser would hide.
+  // "error" fires for two things. A server-sent `event: error` has .data; a
+  // transport error, including the normal close after "done", does not. Refusals
+  // the server wants to explain come with .data, which is why they're events
+  // rather than a 429 the browser would hide.
   eventSource.addEventListener("error", (event) => {
     const messageEvent = event as MessageEvent;
     if (messageEvent.data) {

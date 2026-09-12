@@ -95,9 +95,8 @@ export interface ReportFilters {
   page?: number;
 }
 
-// NOTE: AppNotification, not Notification. `Notification` is a DOM global (the
-// Web Notifications API), so a file that forgot the import would quietly
-// type-check against the browser's one instead of failing.
+// AppNotification, not Notification: `Notification` is a DOM global, so a missing
+// import would type-check against the browser's one instead of failing.
 export interface AppNotification {
   id: string;
   title: string;
@@ -106,16 +105,15 @@ export interface AppNotification {
   createdAt: string;
 }
 
-// The feed and the count come back together, so the bell badge and the list can
-// never disagree.
+// Feed and count come back together, so badge and list can't disagree.
 export interface NotificationFeed {
   notifications: AppNotification[];
   unread: number;
 }
 
-// Today's queries against the daily allowance. The UI shows `percentUsed` only —
-// a raw "18 of 30 left" turned the composer into a countdown clock. Admins are
-// unlimited, which comes back as nulls in every field but `used`.
+// Today's queries against the daily allowance. The UI shows `percentUsed` only,
+// since "18 of 30 left" turned the composer into a countdown. Admins are
+// unlimited, which returns null in every field but `used`.
 export interface UsageInfo {
   limit: number | null;
   used: number;

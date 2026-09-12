@@ -42,14 +42,13 @@ export const ChatThread = ({ messages, userName, onExample }: ChatThreadProps) =
   const [greeting, setGreeting] = useState("Hello");
   const [openReportId, setOpenReportId] = useState<string | null>(null);
 
-  // NOTE: deferred to a mount effect because the greeting depends on the
-  // client's local clock, which the server can't know. Computing it during
-  // render is a hydration mismatch.
+  // Deferred to a mount effect: the greeting reads the client's local clock,
+  // which the server can't know, so computing it in render mismatches.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setGreeting(timeOfDayGreeting()), []);
 
-  // NOTE: instant, not smooth. This fires on every streamed token, and a smooth
-  // scroll that restarts a few times a second never settles.
+  // Instant, not smooth. Fires on every streamed token, and a smooth scroll that
+  // restarts a few times a second never settles.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);

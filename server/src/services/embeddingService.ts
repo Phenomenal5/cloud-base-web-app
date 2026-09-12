@@ -4,10 +4,8 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import { recordTokenUsage } from "./tokenUsageService.js";
 
-// Text to vectors for pgvector storage and similarity search.
-//
-// NOTE: EMBEDDING_DIM must match the schema's vector(1536) column. Switching to a
-// model with a different dimension needs a migration and a full re-ingest.
+// Text to vectors for pgvector storage and similarity search. EMBEDDING_DIM must
+// match the schema's vector(1536) column; changing it needs a full re-ingest.
 export const EMBEDDING_DIM = 1536;
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;

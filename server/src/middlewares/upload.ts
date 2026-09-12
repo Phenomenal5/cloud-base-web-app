@@ -26,11 +26,9 @@ export const uploadCsv = multer({
 export const AVATAR_DIR = resolve("uploads/avatars");
 mkdirSync(AVATAR_DIR, { recursive: true });
 
-// NOTE: SVG is excluded on purpose. It can carry inline <script>, and since
-// avatars are served from our own origin, opening one directly would run it
-// (stored XSS). The stored extension comes from this map rather than the
-// client-supplied filename, so a crafted originalname can't smuggle in a .svg or
-// .html extension either.
+// SVG is excluded: it can carry inline <script>, and avatars are served from our
+// own origin, so opening one would run it (stored XSS). The extension comes from
+// this map, not the client filename, so originalname can't smuggle one in.
 const AVATAR_MIME_EXTENSIONS: Record<string, string> = {
   "image/png": ".png",
   "image/jpeg": ".jpg",

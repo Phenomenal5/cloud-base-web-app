@@ -18,12 +18,10 @@ export const LoginPage = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
 
-  // NOTE: navigate only once auth state has committed to an admin user. Calling
-  // navigate('/') straight after login().unwrap() raced the mutation's setUser
-  // dispatch: status was still 'guest', so ProtectedRoute bounced straight back
-  // here and never re-routed, which is why sign-in sometimes needed a reload.
-  // Reacting to committed status can't race. This also bounces an already
-  // signed-in admin who lands back on /login.
+  // Navigate only once auth state has committed to an admin. navigate('/') right
+  // after login().unwrap() raced setUser: status was still 'guest', so
+  // ProtectedRoute bounced back here and sign-in needed a reload. Also bounces
+  // an already signed-in admin who lands on /login.
   useEffect(() => {
     if (status === 'authenticated' && user?.role === 'ADMIN') navigate('/', { replace: true })
   }, [status, user, navigate])

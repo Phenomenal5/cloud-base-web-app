@@ -2,16 +2,11 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import AppError from "../utils/AppError.js";
 
-// Sends over Brevo's HTTPS API rather than their SMTP relay.
+// Brevo's HTTPS API, not their SMTP relay. Most PaaS hosts block outbound SMTP
+// ports, so nodemailer to smtp-relay.brevo.com:587 just hung until timeout.
 //
-// NOTE: this used to go through nodemailer to smtp-relay.brevo.com:587. Most PaaS
-// hosts block outbound SMTP ports to fight spam, so those sends just hang until
-// they time out. Port 443 is never blocked.
-//
-// NOTE: BREVO_API_KEY is the v3 API key (dashboard, SMTP & API, API Keys), the
-// one starting `xkeysib-`. It is not the "SMTP key" the old transport used;
-// they're separate credentials. EMAIL_FROM must also be a sender verified in
-// Brevo, which is the usual cause of a 400 back from this endpoint.
+// BREVO_API_KEY is the v3 API key (starts `xkeysib-`), not the separate SMTP key.
+// EMAIL_FROM must be a verified Brevo sender, the usual cause of a 400 here.
 
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -27,9 +22,8 @@ interface EmailMessage {
 
 async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<void> {
   if (!isEmailConfigured) {
-    // NOTE: never log the body in production, it contains verification and reset
-    // codes. In prod a missing key is a misconfiguration, not a fallback, and
-    // env validation already makes it required there.
+    // Never log the body in production, it carries verification and reset codes.
+    // A missing key in prod is a misconfiguration, not a fallback.
     if (env.isProduction) {
       logger.error("BREVO_API_KEY is not set, refusing to send email.");
       throw new AppError("Email service is not configured.", 500);
@@ -73,13 +67,11 @@ async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<voi
 
 // ─── Branding ─────────────────────────────────────────
 //
-// These mirror the light palette in client/src/app/globals.css. They're
-// duplicated rather than imported because the frontend's CSS variables aren't
-// reachable from the API, and mail clients wouldn't resolve var() anyway.
+// Mirrors the light palette in client/src/app/globals.css. Duplicated because
+// the API can't reach those CSS variables and mail clients ignore var() anyway.
 //
-// NOTE: mail clients also strip <style> blocks and ignore class-based dark mode,
-// so everything below is inline styles on nested tables. That's dated markup for
-// the web, but it's what renders consistently in Outlook and Gmail.
+// Mail clients strip <style> and ignore class-based dark mode, so everything
+// below is inline styles on nested tables. Dated, but it renders in Outlook.
 const BRAND = {
   background: "#f1f5f9",
   surface: "#ffffff",

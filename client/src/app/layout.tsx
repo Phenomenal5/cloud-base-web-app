@@ -25,10 +25,8 @@ export const metadata: Metadata = {
 };
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
-  // NOTE: suppressHydrationWarning on both. The script above adds a class to
-  // <html> before React hydrates, and browser extensions (ColorZilla adds
-  // `cz-shortcut-listen`) mutate <body>. Both are harmless but trip React's
-  // attribute mismatch check.
+  // suppressHydrationWarning on both. The script above classes <html> before
+  // hydration, and extensions mutate <body>. Harmless, but React flags both.
   <html
     lang="en"
     className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}

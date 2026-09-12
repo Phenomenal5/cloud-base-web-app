@@ -124,8 +124,8 @@ export async function pruneOldData(): Promise<void> {
     prisma.passwordResetToken.deleteMany({
       where: { OR: [{ consumedAt: { not: null } }, { expiresAt: { lt: now } }] },
     }),
-    // NOTE: only expired refresh tokens, not merely revoked ones. Keeping revoked
-    // rows around is what would let us detect a replayed token later.
+    // Expired only, not revoked. Keeping revoked rows is what lets us spot a
+    // replayed token later.
     prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: now } } }),
   ]);
 

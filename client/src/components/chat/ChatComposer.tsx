@@ -35,12 +35,9 @@ export const ChatComposer = ({ onSend, disabled, exhaustedUntil }: ChatComposerP
     }
   };
 
-  // Reset time when they're out, otherwise the standard grounding note.
-  //
-  // NOTE: no running count here on purpose. It used to read "N of M questions
-  // left today" under every keystroke, which turned the composer into a
-  // countdown clock. Usage now lives behind the dial next to the send button,
-  // for whoever actually wants to look.
+  // Reset time when they're out, otherwise the standard grounding note. No
+  // running count: "N of M left today" under every keystroke read as a countdown.
+  // Usage lives behind the dial by the send button instead.
   const footerText = () => {
     if (exhaustedUntil) {
       return `No questions left today — resets ${formatTimeUntil(exhaustedUntil)}, at ${formatLocalTime(exhaustedUntil)}.`;

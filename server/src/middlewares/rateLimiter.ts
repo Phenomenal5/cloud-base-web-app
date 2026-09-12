@@ -1,8 +1,7 @@
 import rateLimit from "express-rate-limit";
 
-// NOTE: in-memory store on purpose, since the stack deliberately has no Redis.
-// Counts are therefore per-instance. If the API ever runs more than one instance,
-// swap in a Prisma-backed store so the windows are shared.
+// In-memory store, since the stack has no Redis. Counts are per-instance, so
+// swap in a Prisma-backed store if the API ever runs more than one.
 
 const shared = {
   standardHeaders: "draft-7",

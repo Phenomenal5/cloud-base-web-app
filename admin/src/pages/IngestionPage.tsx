@@ -21,13 +21,11 @@ export const IngestionPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadIngestion, { isLoading }] = useUploadIngestionMutation()
 
-  // Only poll while something is actually running. Once every job has settled the
-  // list can't change on its own, so polling would just be wasted requests.
-  // Uploading invalidates the list tag, which brings the new job in and starts
-  // polling again.
+  // Poll only while a job is running. Once everything settles the list can't
+  // change on its own. Uploading invalidates the tag and restarts polling.
   //
-  // NOTE: useQueryState reads the cache without firing its own request, which is
-  // what lets the interval below depend on the data it controls.
+  // useQueryState reads the cache without firing a request, which is what lets
+  // the interval below depend on the data it controls.
   const { data: cachedJobs = [] } = api.endpoints.listIngestions.useQueryState()
   const hasActiveJob = cachedJobs.some((job) => isActive(job.status))
 

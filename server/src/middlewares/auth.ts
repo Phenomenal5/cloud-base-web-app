@@ -16,11 +16,10 @@ function extractToken(req: Request): string | undefined {
 
 // ─── protect: require a valid access token ────────────
 //
-// Reads the token from the httpOnly cookie (browsers) or a Bearer header (tools
-// and tests). Verification is stateless, with no DB hit, so this scales
-// horizontally. NOTE: the trade-off is that a blocked or demoted user keeps
-// access until their access token expires (15 min by default). Both paths revoke
-// the user's refresh tokens so the lock-out lands on their next refresh.
+// Token comes from the httpOnly cookie (browsers) or a Bearer header (tools).
+// Stateless, no DB hit. Trade-off: a blocked or demoted user keeps access until
+// their token expires (15 min). Both paths revoke refresh tokens, so the
+// lock-out lands on the next refresh.
 export function protect(req: Request, _res: Response, next: NextFunction): void {
   try {
     const token = extractToken(req);
@@ -53,7 +52,7 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
 }
 
 // ─── authorize: role check, mount after protect ───────
-// NOTE: takes roles as rest args, so authorize("ADMIN"), not authorize(["ADMIN"]).
+// Rest args: authorize("ADMIN"), not authorize(["ADMIN"]).
 export const authorize =
   (...roles: Role[]): RequestHandler =>
   (req, _res, next) => {

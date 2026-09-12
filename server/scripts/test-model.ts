@@ -46,9 +46,8 @@ async function main(): Promise<void> {
     const startedAt = Date.now();
     const completion = await client.chat.completions.create({
       model: chatModel,
-      // NOTE: max_completion_tokens, not max_tokens. Newer models reject the
-      // latter, and this one works on gpt-4o-mini too. The headroom is so a
-      // reasoning model doesn't spend the whole budget before replying.
+      // max_completion_tokens, not max_tokens: newer models reject the latter.
+      // Headroom so a reasoning model doesn't spend the budget before replying.
       max_completion_tokens: 50,
       messages: [{ role: "user", content: "Reply with the single word: pong" }],
     });

@@ -12,10 +12,9 @@ import { ChatThread, type DisplayMessage } from "@/components/chat/ChatThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { GuestBanner } from "@/components/chat/GuestBanner";
 
-// An optional catch-all route, so this one component serves both /chat and
-// /chat/<id>. Keeping the id in the path means refresh, back/forward and
-// bookmarks all land in the same thread, and because both URLs resolve to this
-// same segment, moving between them never remounts and streaming survives.
+// Optional catch-all, so one component serves /chat and /chat/<id>. The id in
+// the path keeps refresh and back/forward on the same thread, and since both
+// URLs hit this segment, moving between them never remounts mid-stream.
 const ChatPage = () => {
   const dispatch = useAppDispatch();
   const router = useRouter();
@@ -29,13 +28,12 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // Set once the daily allowance is spent, so the composer locks instead of
-  // letting them send a question that can only fail.
+  // Set once the allowance is spent, so the composer locks rather than sending
+  // a question that can only fail.
   const [exhaustedUntil, setExhaustedUntil] = useState<string | null>(null);
 
-  // The usage indicator reads the getUsage cache entry, so the stream's figure is
-  // written straight into it rather than kept in a second copy here. upsert
-  // rather than update, so it also lands when nothing has fetched it yet.
+  // The indicator reads the getUsage cache entry, so write the stream's figure
+  // straight into it. upsert, not update, so it lands before any fetch.
   const updateUsage = (usage: UsageInfo) => {
     dispatch(api.util.upsertQueryData("getUsage", undefined, usage));
   };
@@ -162,17 +160,13 @@ const ChatPage = () => {
         updateMessage(assistantMessageId, { streaming: false });
         setIsStreaming(false);
 
-        // The server created a conversation for this first message, so adopt its
-        // id and put it in the URL.
+        // Adopt the id the server minted for this first message.
         //
-        // NOTE: this has to happen after streaming, never during. Changing the
-        // URL mid-stream, even through the History API, starts a Next router
-        // transition, and React defers the low-priority streaming updates caught
-        // in it, so nothing paints until a click forces a flush. That was the
-        // "I have to click the page for the response to appear" bug. Setting
-        // loadedIdRef first stops the URL effect reloading a thread we already
-        // have, and replaceState is deferred a tick so this last render paints
-        // before the router re-syncs the pathname.
+        // After streaming, never during: a mid-stream URL change starts a Next
+        // router transition, React defers the streaming updates caught in it,
+        // and nothing paints until a click forces a flush. loadedIdRef first
+        // stops the URL effect reloading a thread we have; replaceState waits a
+        // tick so this render paints.
         if (done.conversationId && !activeConversationId) {
           const newConversationId = done.conversationId;
           loadedIdRef.current = newConversationId;
@@ -184,10 +178,9 @@ const ChatPage = () => {
       onError: (error) => {
         updateMessage(assistantMessageId, { streaming: false, error });
         setIsStreaming(false);
-        // Remember the reset time so the composer explains itself instead of
-        // letting them fire off another doomed question.
-        // The gate refuses before the handler runs, so no usage event is sent on
-        // this path — the indicator is brought to 100% from the refusal itself.
+        // Remember the reset time so the composer can explain itself. The gate
+        // refuses before the handler runs, so no usage event arrives here and
+        // the indicator is pushed to 100% from the refusal itself.
         if (error.code === "QUOTA_EXCEEDED" && error.resetsAt) {
           setExhaustedUntil(error.resetsAt);
           updateUsage({

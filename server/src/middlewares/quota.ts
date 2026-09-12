@@ -4,38 +4,32 @@ import AppError from "../utils/AppError.js";
 import { dailyLimitFor, usedToday, quotaResetsAt } from "../services/queryLogService.js";
 import { initSse, sendEvent } from "../utils/sse.js";
 
-// Daily query quota. Mount after optionalAuth, since it reads req.user. Stashes
-// the day's usage so far on res.locals.quota, for the controller to turn into a
-// figure the UI can show once it knows whether this turn actually counted.
+// Daily query quota. Mount after optionalAuth, it reads req.user. Stashes the
+// day's usage on res.locals.quota for the controller to finalise.
 
-// The day's usage as it stood BEFORE this request ran.
+// Usage as it stood BEFORE this request.
 //
-// NOTE: deliberately a raw `used`, not a pre-decremented "remaining". The old
-// version stashed `limit - used - 1` here and streamed it straight to the client,
-// which was wrong for every turn that never reaches logQuery — small talk isn't
-// logged at all, so the count in the DB never moved while the UI kept reporting
-// a question spent. Since each turn re-reads `used`, the number the user saw
-// stuck at that first phantom decrement. Whether a turn consumes an allowance is
-// only known after the handler classifies it, so the client-facing figure is
-// built there, via buildQuotaInfo, once the answer is logged.
+// Raw `used`, not a pre-decremented "remaining". Small talk never reaches
+// logQuery, so a pre-decrement showed a question spent that the DB never
+// recorded. Only the handler knows if a turn counted, so buildQuotaInfo runs there.
 export interface QuotaSnapshot {
   limit: number | null; // null means unlimited (admin)
   used: number;
   resetsAt: Date | null; // null when unlimited
 }
 
-// What the client is shown. The chat UI renders `percentUsed` and nothing else;
-// the raw numbers stay in the payload for the API's own consumers.
+// What the client is shown. The chat UI renders `percentUsed` only; the raw
+// numbers stay in the payload for other API consumers.
 export interface QuotaInfo {
   limit: number | null;
   used: number;
   remaining: number | null;
-  percentUsed: number | null; // 0–100, null when unlimited
+  percentUsed: number | null; // 0 to 100, null when unlimited
   resetsAt: string | null; // ISO midnight UTC, null when unlimited
 }
 
-// `consumed` is how many queries this request actually logged: 1 for an answered
-// question, 0 for small talk or a write that failed.
+// `consumed` is what this request logged: 1 for an answered question, 0 for
+// small talk or a failed write.
 export function buildQuotaInfo(snapshot: QuotaSnapshot, consumed: number): QuotaInfo {
   const { limit } = snapshot;
   const used = snapshot.used + consumed;
@@ -44,17 +38,16 @@ export function buildQuotaInfo(snapshot: QuotaSnapshot, consumed: number): Quota
     return { limit: null, used, remaining: null, percentUsed: null, resetsAt: null };
   }
 
-  // Clamped, because a race between two in-flight streams can push the tally a
-  // hair past the limit, and "31 of 30 used" reads as a bug to the person seeing it.
+  // Clamped: two in-flight streams can race past the limit, and "31 of 30" reads
+  // as a bug.
   const clampedUsed = Math.min(limit, used);
 
   return {
     limit,
     used: clampedUsed,
     remaining: Math.max(0, limit - clampedUsed),
-    // NOTE: guard the divisor. A misconfigured QUOTA_*_DAILY of 0 would otherwise
-    // make this NaN, which serialises to null and reads as "unlimited" — the exact
-    // opposite of what a zero limit means.
+    // Guard the divisor. A QUOTA_*_DAILY of 0 gives NaN, which serialises to null
+    // and reads as unlimited, the opposite of what it means.
     percentUsed: limit > 0 ? Math.round((clampedUsed / limit) * 100) : 100,
     resetsAt: (snapshot.resetsAt ?? quotaResetsAt()).toISOString(),
   };
@@ -69,11 +62,9 @@ function wantsEventStream(req: Request): boolean {
   return Boolean(req.headers.accept?.includes("text/event-stream"));
 }
 
-// NOTE: a plain 429 is invisible to EventSource. It exposes neither the status
-// code nor the body of a failed handshake, just a bodyless `error` that looks
-// exactly like a dropped connection, which is why an exhausted user used to see
-// "Connection lost". So SSE consumers get a normal 200 stream carrying an `error`
-// event they can actually read. Everyone else gets the real 429.
+// A plain 429 is invisible to EventSource: it exposes neither status nor body,
+// just a bodyless `error` that looks like a dropped connection. So SSE consumers
+// get a 200 stream carrying a readable `error` event. Everyone else gets the 429.
 function rejectOverQuota(
   req: Request,
   res: Response,

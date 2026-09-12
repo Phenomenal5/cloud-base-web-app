@@ -16,8 +16,8 @@ import { clearUser } from './authSlice'
 
 const rawBaseQuery = axiosBaseQuery()
 
-// NOTE: concurrent 401s must share a single refresh. The refresh token rotates,
-// so a second parallel refresh would invalidate the first one's result.
+// Concurrent 401s share one refresh. The token rotates, so a second parallel
+// refresh would invalidate the first one's result.
 let refreshPromise: ReturnType<typeof rawBaseQuery> | null = null
 
 const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQueryError> = async (

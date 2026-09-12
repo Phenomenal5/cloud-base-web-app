@@ -6,17 +6,14 @@ import { useGetUsageQuery } from "@/store/api";
 import { useAppSelector } from "@/store/hooks";
 import { cn, formatLocalTime, formatTimeUntil } from "@/lib/utils";
 
-// A quiet dial next to the send button rather than a running count in the
-// footer. The count was there on every keystroke and read as a countdown; usage
-// is something you should be able to check when you wonder about it and ignore
-// the rest of the time.
+// A quiet dial by the send button, not a footer count. The count sat there on
+// every keystroke and read as a countdown.
 //
-// Signed-in only. A guest's allowance is counted per IP, and there's no version
-// of "you're at 50%" that's useful to someone with two questions who is being
-// asked to sign up anyway — the GuestBanner does that job.
+// Signed-in only. Guest allowance is per IP, and "you're at 50%" means nothing
+// to someone with two questions. GuestBanner covers that case.
 
-// Amber past two thirds, red once it's nearly gone. Below that it stays muted,
-// so the icon only draws the eye when there's something to notice.
+// Amber past two thirds, red when nearly gone, muted below that, so the icon
+// only draws the eye when it matters.
 function toneFor(percentUsed: number) {
   if (percentUsed >= 90) return "text-red-600 dark:text-red-400";
   if (percentUsed >= 67) return "text-amber-600 dark:text-amber-400";

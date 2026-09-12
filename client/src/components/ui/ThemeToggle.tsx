@@ -8,9 +8,8 @@ import { Moon, Sun } from "lucide-react";
 export const ThemeToggle = () => {
   const [isDark, setIsDark] = useState(false);
 
-  // NOTE: read after mount, not during render. The server can't see the class
-  // that pre-paint script sets, so reading it during render is a hydration
-  // mismatch.
+  // Read after mount, not in render. The server can't see the class the pre-paint
+  // script sets, so reading it during render mismatches.
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDark(document.documentElement.classList.contains("dark"));

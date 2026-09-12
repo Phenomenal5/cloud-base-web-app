@@ -50,13 +50,11 @@ export const markRead = catchAsync(async (req, res) => {
 export const broadcastNotification = catchAsync(async (req, res) => {
   const { title, body } = req.body as { title: string; body: string };
 
-  // NOTE: done as INSERT ... SELECT rather than reading every user id into the
-  // API process first. It's one round trip and its memory use doesn't grow with
-  // the user table.
+  // INSERT ... SELECT instead of loading every user id into the process. One
+  // round trip, and memory doesn't grow with the user table.
   //
-  // The ::text cast matters: `id` is a TEXT column (Prisma generates uuids in
-  // the client), and Postgres won't assign a uuid to it without one. createdAt
-  // is left out because the column already defaults to CURRENT_TIMESTAMP.
+  // The ::text cast is required: `id` is TEXT (Prisma generates uuids client
+  // side) and Postgres won't assign a uuid without it. createdAt defaults in DB.
   const recipients = await prisma.$executeRaw`
     INSERT INTO notifications (id, "userId", title, body)
     SELECT gen_random_uuid()::text, u.id, ${title}, ${body}
