@@ -24,8 +24,8 @@ const LoginPage = () => {
       try {
         await login(values).unwrap();
         toast.success("Signed in");
-        // The auth layout also redirects once status commits; this is just the
-        // faster path when it wins.
+        // the auth layout redirects too, once status commits. this is just the quicker
+        // path for when it gets there first
         router.push("/chat");
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Invalid email or password."));
@@ -40,7 +40,7 @@ const LoginPage = () => {
         <p className="mt-1 text-sm text-muted">Sign in to save and revisit your chats.</p>
       </header>
 
-      {/* noValidate: Yup owns validation, so the browser's native bubbles don't
+      {/* noValidate because yup owns validation, so the browser's own bubbles don't
           compete with our inline messages. */}
       <form onSubmit={form.handleSubmit} className="flex flex-col gap-4" noValidate>
         <Input

@@ -11,8 +11,8 @@ import { runMetricsMaintenance } from "./services/metricsRollupService.js";
 import { prisma } from "./config/prisma.js";
 import { logger } from "./config/logger.js";
 
-// Deployed as its own service. Shares the server's codebase but runs ingestion
-// and nightly maintenance off the request path. Start it with `npm run worker`.
+// its own service, same codebase as the API. this is where ingestion and the
+// nightly maintenance run, off the request path. start it with `npm run worker`
 
 async function start() {
   try {
@@ -25,7 +25,7 @@ async function start() {
 
   const boss = await getBoss();
 
-  // pg-boss hands the handler a batch, not a single job.
+  // note pg-boss hands you an array, not one job, even with a batch size of 1
   await boss.work(INGESTION_QUEUE, async (jobs) => {
     for (const job of jobs) {
       const { jobId } = job.data as { jobId: string };
@@ -37,7 +37,9 @@ async function start() {
     await runMetricsMaintenance();
   });
   await scheduleMetricsMaintenance();
-  // Run one pass now, so a fresh deploy has rollups without waiting for 03:00.
+
+  // kick one off right now too, otherwise a fresh deploy shows an empty
+  // dashboard until 3am
   await enqueueMetricsMaintenance();
 
   logger.info(`Worker listening on queues "${INGESTION_QUEUE}" and "${METRICS_QUEUE}"`);

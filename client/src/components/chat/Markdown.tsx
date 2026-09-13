@@ -1,21 +1,22 @@
 import { Fragment, type ReactNode } from "react";
 
-// The assistant answers in light Markdown (see the system prompt in
-// server/src/services/llmService.ts). Raw text rendering showed literal "**".
+// the assistant replies in light markdown, see the system prompt over in
+// server/src/services/llmService.ts. printing content as plain text showed
+// literal "**" on screen.
 //
-// Not react-markdown: the output is a small known subset, so this keeps the
-// bundle lean. Builds React nodes, never dangerouslySetInnerHTML, so retrieved
-// report text can't inject HTML.
+// deliberately not react-markdown. the output is a small known subset, so this
+// keeps the bundle down and adds no dependency. it builds react nodes and never
+// touches dangerouslySetInnerHTML, so retrieved report text can't inject HTML
 
 const BULLET = /^\s*[-*]\s+/;
 const ORDERED = /^\s*\d+\.\s+/;
 const HEADING = /^\s*#{1,6}\s+/;
-// A line of only dashes, asterisks or underscores. The prompt forbids horizontal
-// rules, but strip any that slip through rather than render "---".
+// a line that's nothing but dashes, asterisks or underscores. the prompt says
+// not to use horizontal rules, but strip the ones that slip through anyway
 const RULE = /^\s*([-*_])\1{2,}\s*$/;
 
-// **bold**, *italic* / _italic_, `code`. Splits on each match in turn, so several
-// non-nested spans on one line all render.
+// **bold**, *italic* or _italic_, and `code`. splits on each match in turn, so
+// several non-nested spans on the same line all come out right
 const renderInline = (text: string, keyPrefix: string): ReactNode[] => {
   const pattern = /(\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*|_([^_]+)_)/g;
   const nodes: ReactNode[] = [];
@@ -38,7 +39,7 @@ const renderInline = (text: string, keyPrefix: string): ReactNode[] => {
         </code>,
       );
     } else {
-      // Both italic forms land here; only one group can have matched.
+      // both italic forms end up here, and only one group can have matched
       nodes.push(<em key={`${keyPrefix}-${key++}`}>{match[4] ?? match[5]}</em>);
     }
 
@@ -73,8 +74,8 @@ const renderBlock = (block: string, blockKey: string): ReactNode => {
     );
   }
 
-  // Paragraph. Line breaks are kept, stray headings become bold lines, and
-  // horizontal rules are dropped so no raw "##" or "---" leaks through.
+  // a paragraph. line breaks survive, a stray heading becomes a bold line, and
+  // rules are dropped, so no raw "##" or "---" ever reaches the screen
   return (
     <p key={blockKey} className="whitespace-pre-wrap">
       {lines.map((line, index) => {
@@ -93,7 +94,7 @@ const renderBlock = (block: string, blockKey: string): ReactNode => {
 };
 
 export const Markdown = ({ children }: { children: string }) => {
-  // Blocks are separated by blank lines.
+  // blank lines are what separate blocks
   const blocks = children.split(/\n{2,}/);
 
   return (

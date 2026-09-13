@@ -2,11 +2,15 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import AppError from "../utils/AppError.js";
 
-// Brevo's HTTPS API, not their SMTP relay. Most PaaS hosts block outbound SMTP
-// ports, so nodemailer to smtp-relay.brevo.com:587 just hung until timeout.
+// sends over brevo's HTTPS API rather than their SMTP relay. this used to go
+// through nodemailer to smtp-relay.brevo.com:587, but most PaaS hosts block
+// outbound SMTP ports to fight spam, so those sends just hung until they timed
+// out. port 443 never gets blocked.
 //
-// BREVO_API_KEY is the v3 API key (starts `xkeysib-`), not the separate SMTP key.
-// EMAIL_FROM must be a verified Brevo sender, the usual cause of a 400 here.
+// BREVO_API_KEY is the v3 API key, the one starting `xkeysib-`, not the "SMTP
+// key" the old transport wanted. they're separate credentials. EMAIL_FROM also
+// has to be a sender you've verified in brevo, which is the usual reason this
+// endpoint hands back a 400
 
 const BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email";
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -22,8 +26,9 @@ interface EmailMessage {
 
 async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<void> {
   if (!isEmailConfigured) {
-    // Never log the body in production, it carries verification and reset codes.
-    // A missing key in prod is a misconfiguration, not a fallback.
+    // never log the body in production, it has verification and reset codes in it.
+    // in prod a missing key is a misconfiguration, not a fallback, and env validation
+    // already makes it required there
     if (env.isProduction) {
       logger.error("BREVO_API_KEY is not set, refusing to send email.");
       throw new AppError("Email service is not configured.", 500);
@@ -48,7 +53,7 @@ async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<voi
         htmlContent: html,
         textContent: text,
       }),
-      // Otherwise a slow provider holds the registration request open.
+      // otherwise a slow provider holds the whole registration request open
       signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
   } catch (error) {
@@ -57,21 +62,23 @@ async function sendEmail({ to, subject, html, text }: EmailMessage): Promise<voi
   }
 
   if (!response.ok) {
-    // Brevo returns { code, message } naming the actual problem ("sender not
-    // valid", "unauthorized"), so log it verbatim.
+    // brevo sends back { code, message } naming the real problem ("sender not
+    // valid", "unauthorized"), so log it word for word
     const detail = await response.text().catch(() => "<unreadable body>");
     logger.error(`Brevo rejected the send (HTTP ${response.status}): ${detail}`);
     throw new AppError("Failed to send email. Please try again shortly.", 502);
   }
 }
 
-// ─── Branding ─────────────────────────────────────────
+// ========== email branding ==============
 //
-// Mirrors the light palette in client/src/app/globals.css. Duplicated because
-// the API can't reach those CSS variables and mail clients ignore var() anyway.
+// these mirror the light palette in client/src/app/globals.css. duplicated
+// rather than imported because the frontend's CSS variables aren't reachable
+// from the API, and mail clients wouldn't resolve var() anyway
 //
-// Mail clients strip <style> and ignore class-based dark mode, so everything
-// below is inline styles on nested tables. Dated, but it renders in Outlook.
+// mail clients also strip <style> blocks and ignore class-based dark mode, so
+// everything below is inline styles on nested tables. dated markup for the web,
+// but it's what renders consistently in outlook and gmail
 const BRAND = {
   background: "#f1f5f9",
   surface: "#ffffff",
@@ -91,7 +98,7 @@ interface CodeEmailOptions {
   lead: string;
   code: string;
   minutes: number;
-  // Shown in the inbox preview line, next to the subject.
+  // this shows in the inbox preview line, next to the subject
   preheader: string;
 }
 

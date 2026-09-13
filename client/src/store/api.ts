@@ -13,14 +13,14 @@ import type {
 import { axiosBaseQuery, type AxiosQueryArgs, type AxiosQueryError } from "./axiosBaseQuery";
 import { clearUser, setUser } from "./authSlice";
 
-// The app's one HTTP client. On a 401 for a protected route we rotate the
-// session through /auth/refresh once and retry; if that fails, the user is
-// cleared and treated as a guest.
+// the app's only HTTP client. on a 401 we rotate the session through
+// /auth/refresh once and retry the original request. if that fails too, clear
+// the user and treat them as a guest
 
 const rawBaseQuery = axiosBaseQuery();
 
-// Concurrent 401s share one refresh. The token rotates, so a second parallel
-// refresh would invalidate the first one's result.
+// all the 401s share one refresh promise. the refresh token rotates, so two of
+// them running at once means the second one invalidates the first
 let refreshPromise: ReturnType<typeof rawBaseQuery> | null = null;
 
 const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQueryError> = async (
@@ -31,7 +31,7 @@ const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQu
   let result = await rawBaseQuery(queryArgs, baseQueryApi, extraOptions);
 
   const requestUrl = typeof queryArgs === "string" ? queryArgs : queryArgs.url;
-  // A failed login or refresh must not trigger another refresh.
+  // a failed login or a failed refresh must not kick off another refresh
   const isAuthRoute = requestUrl.startsWith("/auth/");
 
   if (result.error?.status === 401 && !isAuthRoute) {
@@ -60,7 +60,7 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ["User", "Conversation", "Notification", "Report", "IngestionJob", "Usage"],
   endpoints: (builder) => ({
-    // ── Session ──
+    // ===== session =====
     me: builder.query<User, void>({
       query: () => "/auth/me",
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
@@ -70,19 +70,18 @@ export const api = createApi({
       query: () => "/health",
     }),
 
-    // ── Auth ──
+    // ===== auth =====
     login: builder.mutation<User, { email: string; password: string }>({
       query: (body) => ({ url: "/auth/login", method: "POST", body }),
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
-      // Set auth state as soon as login resolves rather than waiting on the
-      // /auth/me refetch, so routing to /chat renders the signed-in UI without a
-      // flicker of the guest one.
+      // set the user the moment login resolves instead of waiting for /auth/me to
+      // come back. otherwise routing to /chat flashes the guest UI first
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
           dispatch(setUser(data));
         } catch {
-          // The page shows the error toast; there's nothing to set here.
+          // the page raises the toast, nothing to set here
         }
       },
       invalidatesTags: [{ type: "User", id: "ME" }],
@@ -98,13 +97,13 @@ export const api = createApi({
     verifyEmail: builder.mutation<User, { email: string; code: string }>({
       query: (body) => ({ url: "/auth/verify-email", method: "POST", body }),
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
-      // Verifying the code also signs the user in, so set auth state here too.
+      // entering the code logs them in as well, so set the user here too
       async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
           dispatch(setUser(data));
         } catch {
-          // The page shows the error toast.
+          // page handles the toast
         }
       },
       invalidatesTags: [{ type: "User", id: "ME" }],
@@ -126,17 +125,16 @@ export const api = createApi({
       invalidatesTags: [{ type: "User", id: "ME" }],
     }),
 
-    // ── Usage ──
-    // Seeds the composer's usage indicator on page load. After that the answer
-    // stream keeps it current (see updateUsage in the chat page), so this never
-    // needs polling.
+    // ===== usage =====
+    // just seeds the dial on page load. after that the answer stream keeps it up
+    // to date, see updateUsage in the chat page, so this never needs polling
     getUsage: builder.query<UsageInfo, void>({
       query: () => "/ask/usage",
       transformResponse: (response: ApiEnvelope<{ usage: UsageInfo }>) => response.data.usage,
       providesTags: [{ type: "Usage", id: "ME" }],
     }),
 
-    // ── Conversations ──
+    // ===== conversations =====
     listConversations: builder.query<
       ConversationSummary[],
       { search?: string; archived?: boolean } | void
@@ -150,7 +148,7 @@ export const api = createApi({
       }),
       transformResponse: (response: ApiEnvelope<{ conversations: ConversationSummary[] }>) =>
         response.data.conversations,
-      // Per-id tags, so renaming one conversation doesn't refetch every list.
+      // a tag per id, so renaming one thread doesn't refetch every list we hold
       providesTags: (conversations) =>
         conversations
           ? [
@@ -189,7 +187,7 @@ export const api = createApi({
       invalidatesTags: [{ type: "Conversation", id: "LIST" }],
     }),
 
-    // ── Reports ──
+    // ===== reports =====
     getReport: builder.query<Report, string>({
       query: (reportId) => `/reports/${reportId}`,
       transformResponse: (response: ApiEnvelope<{ report: Report }>) => response.data.report,
@@ -210,9 +208,9 @@ export const api = createApi({
       providesTags: [{ type: "Report", id: "LIST" }],
     }),
 
-    // ── Notifications ──
-    // Rows are only ever created by an admin broadcast, so the only writes here
-    // are read receipts.
+    // ===== notifications =====
+    // only an admin broadcast ever creates these, so everything here is just
+    // marking things read
     listNotifications: builder.query<NotificationFeed, void>({
       query: () => "/notifications",
       transformResponse: (response: ApiEnvelope<NotificationFeed>) => response.data,
@@ -232,8 +230,8 @@ export const api = createApi({
         url: `/notifications/${notificationId}/read`,
         method: "PATCH",
       }),
-      // LIST as well, because the unread count comes back with the feed, so the
-      // badge stays stale until the list itself refetches.
+      // invalidate LIST too. the unread count rides along with the feed, so the
+      // badge stays wrong until the list itself refetches
       invalidatesTags: (_result, _error, notificationId) => [
         { type: "Notification", id: notificationId },
         { type: "Notification", id: "LIST" },
@@ -245,7 +243,7 @@ export const api = createApi({
       invalidatesTags: [{ type: "Notification", id: "LIST" }],
     }),
 
-    // ── Profile ──
+    // ===== profile =====
     updateProfile: builder.mutation<User, { displayName: string }>({
       query: (body) => ({ url: "/users/me", method: "PATCH", body }),
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,

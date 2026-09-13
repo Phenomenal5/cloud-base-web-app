@@ -2,8 +2,8 @@
 
 import { config } from "@/lib/config";
 
-// A full page navigation, not an axios call: the backend redirects to Google and
-// Google redirects back, which XHR can't follow.
+// a real page navigation, not an axios call. the backend redirects to google and
+// google redirects back, and XHR can't follow that
 export const GoogleButton = () => (
   <a
     href={`${config.apiUrl}/auth/google`}

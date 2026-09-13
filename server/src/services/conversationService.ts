@@ -3,13 +3,13 @@ import AppError from "../utils/AppError.js";
 import type { MessageRole } from "../generated/prisma/enums.js";
 import type { ConversationTurn } from "./llmService.js";
 
-// Every read and write here is scoped to a userId, so one user can never reach
-// another's threads.
+// everything in here is scoped by userId, so nobody can reach another user's
+// threads even with a valid id
 
 const MAX_TITLE_LENGTH = 60;
 
-// Derived from the first message. Cheap and deterministic; an LLM-generated
-// title would be nicer but isn't worth a call per conversation.
+// title a thread from its first message. an LLM could write a nicer one but
+// that's a whole extra call per conversation for not much
 export function titleFromMessage(text: string): string {
   const clean = text.replace(/\s+/g, " ").trim();
   return clean.length <= MAX_TITLE_LENGTH ? clean : `${clean.slice(0, MAX_TITLE_LENGTH - 3)}…`;
@@ -19,8 +19,8 @@ export async function createConversation(userId: string, title: string) {
   return prisma.conversation.create({ data: { userId, title } });
 }
 
-// 404 rather than 403, so this doesn't confirm that someone else's conversation
-// exists.
+// fetch a thread, but only if it belongs to them. 404 not 403, a 403 would
+// confirm someone else's conversation exists
 export async function getOwnedConversation(userId: string, conversationId: string) {
   const conversation = await prisma.conversation.findFirst({
     where: { id: conversationId, userId },
@@ -43,7 +43,7 @@ export async function addMessage(
       citations: citations === undefined ? undefined : (citations as object),
     },
   });
-  // Bump updatedAt so the sidebar sorts by recent activity.
+  // touch the parent so the sidebar sorts this thread back to the top
   await prisma.conversation.update({
     where: { id: conversationId },
     data: { updatedAt: new Date() },
@@ -51,7 +51,7 @@ export async function addMessage(
   return message;
 }
 
-// The last N turns, oldest first, for follow-up context.
+// the last few turns, for answering follow-ups
 export async function getRecentTurns(
   conversationId: string,
   limit: number,
@@ -62,5 +62,8 @@ export async function getRecentTurns(
     take: limit,
     select: { role: true, content: true },
   });
+
+  // query is newest-first so we get the *recent* ones, flip it back so the model
+  // reads the conversation in order
   return messages.reverse().map((message) => ({ role: message.role, content: message.content }));
 }

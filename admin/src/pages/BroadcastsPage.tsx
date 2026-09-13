@@ -5,7 +5,7 @@ import { getApiErrorMessage } from '@/lib/apiError'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
 
-// Kept in step with broadcastSchema on the server.
+// keep these in step with broadcastSchema on the server
 const MAX_TITLE_LENGTH = 120
 const MAX_BODY_LENGTH = 1000
 
@@ -54,7 +54,7 @@ export const BroadcastsPage = () => {
             className='w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-brand'
           />
         </div>
-        {/* Whitespace-only passes `required`, so check the trimmed values too. */}
+        {/* a box full of spaces passes `required`, so check the trimmed values too */}
         <Button
           type='submit'
           loading={isLoading}

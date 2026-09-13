@@ -2,39 +2,41 @@ import { prisma } from "../config/prisma.js";
 import { catchAsync } from "../utils/catchAsync.js";
 import { Role, QueryKind, JobStatus, AiOperation } from "../generated/prisma/enums.js";
 
-function startOfUtcDay(): Date {
+// =========== Helpers ==============
+
+// midnight UTC today, the cutoff between rolled-up history and live rows
+const startOfUtcDay = (): Date => {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
-}
+};
 
-// Turn sparse rows into a full { enumValue: count } map, so the dashboard always
-// gets every key and doesn't have to handle missing ones.
-function countsByKey<Key extends string>(
+// fill in the zeros
+const countsByKey = <Key extends string>(
   keys: readonly Key[],
   rows: Array<{ key: Key; value: number }>,
-): Record<Key, number> {
+): Record<Key, number> => {
+  // groupBy only returns keys that have rows, so start everything at 0 and let
+  // the real counts overwrite. the dashboard then never has to handle a missing key
   const result = Object.fromEntries(keys.map((key) => [key, 0])) as Record<Key, number>;
   for (const row of rows) result[row.key] = row.value;
   return result;
-}
+};
 
-// daily_metrics.tokensByOperation is a Json column we write ourselves, so it's
-// always an object of numbers. This just narrows it back without trusting it.
-function asNumberRecord(value: unknown): Record<string, number> {
+// narrow the tokensByOperation json column back to an object of numbers
+const asNumberRecord = (value: unknown): Record<string, number> => {
+  // we write this column ourselves so it's always shaped right, but it comes back
+  // as Json and this beats trusting it blindly
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, number>;
   }
   return {};
-}
+};
 
-// ─── GET /api/admin/metrics ───────────────────────────
-//
-// Query and token totals read as sum(daily_metrics) plus today's live rows. The
-// worker folds each completed day into daily_metrics before pruning the raw
-// tables, which keeps this query cheap no matter how much history accumulates.
+// ========== admin dashboard metrics controller ==================
 export const getMetrics = catchAsync(async (_req, res) => {
   const todayStart = startOfUtcDay();
 
+  // fire everything at once, none of these depend on each other
   const [
     userTotal,
     usersByRole,
@@ -66,9 +68,10 @@ export const getMetrics = catchAsync(async (_req, res) => {
       take: 6,
       select: { id: true, displayName: true, email: true, role: true, createdAt: true },
     }),
-    // One small row per completed day.
+    // one small row per finished day. the worker folds each day in here then
+    // prunes the raw logs, which is what keeps this cheap as history piles up
     prisma.dailyMetric.findMany(),
-    // Today's rows, bounded to a single day.
+    // today isn't rolled up yet, so count it live. bounded to one day
     prisma.queryLog.groupBy({
       by: ["kind"],
       where: { createdAt: { gte: todayStart } },
@@ -85,7 +88,6 @@ export const getMetrics = catchAsync(async (_req, res) => {
     }),
   ]);
 
-  // ── Merge the rolled-up history with today ──
   let queriesSearch = 0;
   let queriesAsk = 0;
   let tokensTotal = 0;
@@ -93,6 +95,7 @@ export const getMetrics = catchAsync(async (_req, res) => {
   let tokensCompletion = 0;
   const tokensByOperation: Record<string, number> = {};
 
+  // add up every finished day
   for (const metric of dailyMetrics) {
     queriesSearch += metric.queriesSearch;
     queriesAsk += metric.queriesAsk;
@@ -104,6 +107,7 @@ export const getMetrics = catchAsync(async (_req, res) => {
     }
   }
 
+  // then stack today's live numbers on top
   for (const row of queriesTodayByKind) {
     if (row.kind === "SEARCH") queriesSearch += row._count._all;
     else if (row.kind === "ASK") queriesAsk += row._count._all;
@@ -117,6 +121,7 @@ export const getMetrics = catchAsync(async (_req, res) => {
       (tokensByOperation[row.operation] ?? 0) + (row._sum.totalTokens ?? 0);
   }
 
+  // shape it into the blocks the dashboard cards expect
   res.status(200).json({
     data: {
       users: {

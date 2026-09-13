@@ -9,9 +9,8 @@ interface QuotaNoticeProps {
   error: StreamError;
 }
 
-// Amber rather than red on purpose: nothing has broken, the person has just used
-// their allowance. The useful information is when they get it back, so the reset
-// time leads.
+// amber not red, on purpose. nothing is broken, they've just used what they had.
+// the only useful thing here is when they get more, so lead with the reset time
 export const QuotaNotice = ({ error }: QuotaNoticeProps) => {
   const { resetsAt, isGuest } = error;
 

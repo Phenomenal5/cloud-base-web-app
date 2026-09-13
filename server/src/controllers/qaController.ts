@@ -24,39 +24,40 @@ import { clientIp, buildQuotaInfo, type QuotaSnapshot } from "../middlewares/quo
 const MAX_QUERY_LENGTH = 500;
 const STREAM_FAILURE_MESSAGE = "The answer service is temporarily unavailable. Please try again.";
 
-function logStreamError(error: unknown): void {
+// =========== Helpers ==============
+
+const logStreamError = (error: unknown): void => {
   logger.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
-}
+};
 
-// Usage must go out BEFORE done or error. The browser closes the EventSource on
-// either one, so anything sent after goes into a socket nobody reads.
-function sendUsage(res: Response, consumed: number): void {
+// tell the client what this turn cost them
+const sendUsage = (res: Response, consumed: number): void => {
+  // this has to go out BEFORE done or error. the browser closes the EventSource
+  // the moment it sees either, so anything after lands in a socket nobody reads
   sendEvent(res, "usage", buildQuotaInfo(res.locals.quota as QuotaSnapshot, consumed));
-}
+};
 
-// The audit trail doubles as the quota counter, so a failed write must not take
-// the answer with it. Returns how many queries were charged, 0 on failure, so
-// the reported usage matches the table.
-async function recordQuery(entry: Parameters<typeof logQuery>[0]): Promise<number> {
+// write the audit row, and say whether it counted
+const recordQuery = async (entry: Parameters<typeof logQuery>[0]): Promise<number> => {
   try {
     await logQuery(entry);
     return 1;
   } catch (error) {
+    // the audit trail doubles as the quota counter, but a failed write here must
+    // not kill an answer we already streamed. return 0 so the usage number we
+    // report matches what actually made it into the table
     logStreamError(error);
     return 0;
   }
-}
+};
 
-// ─── GET /api/ask (Server-Sent Events) ────────────────
-//
-// Mounted behind optionalAuth: signed-in users get a persisted, multi-turn
-// conversation, guests get the same answer without one.
-// Events: meta -> sources -> token (xN) -> done | error.
+// ========== ask a question controller (SSE) ==================
 export const ask = catchAsync(async (req, res) => {
   const raw = req.query.query ?? req.query.q;
   const query = typeof raw === "string" ? raw.trim() : "";
 
-  // Validate before the stream opens, so these come back as clean JSON errors.
+  // validate before the stream opens, so these come back as normal JSON errors
+  // instead of an error event the browser has to unpack
   if (!query) throw new AppError("A query is required.", 422);
   if (query.length > MAX_QUERY_LENGTH) {
     throw new AppError(`Query must be at most ${MAX_QUERY_LENGTH} characters.`, 422);
@@ -66,37 +67,39 @@ export const ask = catchAsync(async (req, res) => {
   const requestedConversationId =
     typeof req.query.conversationId === "string" ? req.query.conversationId : undefined;
 
-  // Stop generating if the browser goes away, so we don't pay for tokens nobody
-  // will read.
+  // if they close the tab mid-answer, stop generating. no point paying for
+  // tokens nobody is going to read
   let clientGone = false;
   req.on("close", () => {
     clientGone = true;
   });
 
-  // ── Conversation and history (signed-in users only) ──
+  // signed-in users get a saved thread, guests get the same answer without one
   let conversationId: string | undefined;
   let history: ConversationTurn[] = [];
 
   if (req.user) {
     if (requestedConversationId) {
-      // Throws 404 if it isn't theirs.
+      // throws 404 if the thread isn't theirs
       const conversation = await getOwnedConversation(req.user.id, requestedConversationId);
       conversationId = conversation.id;
       history = await getRecentTurns(conversationId, env.followupTurns * 2);
     } else {
+      // first message, so start a thread and title it from what they typed
       const conversation = await createConversation(req.user.id, titleFromMessage(query));
       conversationId = conversation.id;
     }
-    // Persist their message now so it survives the stream dropping.
+
+    // save their message now, before any of the slow bits, so it survives the
+    // stream dropping halfway
     await addMessage(conversationId, "USER", query);
   }
 
-  // One LLM call decides whether this turn is a real question or small talk, and
-  // resolves follow-up references while it's at it. It replaces what used to be a
-  // separate rewrite step, so it costs nothing extra on a follow-up.
+  // one call decides if this is a real question or just chit-chat, and resolves
+  // "what about that one?" into something searchable while it's in there
   const resolved = await resolveQuery(history, query);
 
-  // Persist whatever was streamed, even a partial answer.
+  // save whatever we managed to stream, even a half-finished answer
   async function persistReply(text: string, citations: Array<{ acn: string; reportId: string }>) {
     if (!conversationId || !text.trim()) return;
     try {
@@ -106,8 +109,7 @@ export const ask = catchAsync(async (req, res) => {
     }
   }
 
-  // ── Small talk: reply briefly, no retrieval and no citations ──
-  // Not logged as a query, so a greeting doesn't cost anyone their daily quota.
+  // small talk path: short reply, no retrieval, no citations
   if (resolved.mode === "chat") {
     initSse(res);
     sendEvent(res, "meta", { conversationId });
@@ -127,8 +129,9 @@ export const ask = catchAsync(async (req, res) => {
     }
 
     await persistReply(reply, []);
-    // Nothing was logged, so nothing was consumed. Reporting the unchanged
-    // figure is the whole point: a greeting must not look like a spent question.
+
+    // consumed 0, because we never logged it. saying hello must not look like it
+    // cost them a question
     sendUsage(res, 0);
     if (streamFailed) {
       sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
@@ -140,13 +143,17 @@ export const ask = catchAsync(async (req, res) => {
   }
 
   const searchQuery = resolved.query;
+
+  // only tell the client about the rewrite if it actually rewrote something
   const rewrittenQuery = searchQuery !== query ? searchQuery : undefined;
 
-  // Retrieve before opening the stream, so a failure here is still clean JSON.
+  // search before opening the stream, same reason as the validation above
   const hits = await semanticSearch(searchQuery, env.retrievalTopN, env.retrievalMinSimilarity);
 
   initSse(res);
 
+  // sources go out first so the UI can show what we're answering from while the
+  // tokens are still arriving
   sendEvent(res, "meta", { conversationId, rewrittenQuery });
   sendEvent(res, "sources", {
     count: hits.length,
@@ -158,12 +165,14 @@ export const ask = catchAsync(async (req, res) => {
     })),
   });
 
-  // Nothing relevant in the corpus. Say so rather than let the model invent an
-  // answer with no sources behind it.
+  // nothing matched, so say so. letting the model answer with no reports behind
+  // it is exactly the thing this whole app is built to avoid
   if (hits.length === 0) {
     const message = "I couldn't find any relevant reports in the corpus for that question.";
     sendEvent(res, "token", { text: message });
     await persistReply(message, []);
+
+    // still counts as a question, they used a search either way
     const consumed = await recordQuery({
       userId: req.user?.id,
       ip: clientIp(req),
@@ -180,6 +189,7 @@ export const ask = catchAsync(async (req, res) => {
     return;
   }
 
+  // stream the grounded answer token by token
   const citations = hits.map((hit) => ({ acn: hit.acn, reportId: hit.reportId }));
   let answer = "";
   let streamFailed = false;
@@ -196,6 +206,7 @@ export const ask = catchAsync(async (req, res) => {
   }
 
   await persistReply(answer, citations);
+
   const consumed = await recordQuery({
     userId: req.user?.id,
     ip: clientIp(req),
@@ -207,6 +218,7 @@ export const ask = catchAsync(async (req, res) => {
     latencyMs: Date.now() - started,
   });
 
+  // usage, then done. order matters, see sendUsage
   sendUsage(res, consumed);
   if (streamFailed) {
     sendEvent(res, "error", { message: STREAM_FAILURE_MESSAGE });
@@ -216,14 +228,14 @@ export const ask = catchAsync(async (req, res) => {
   res.end();
 });
 
-// ─── GET /api/ask/usage ───────────────────────────────
-//
-// Backs the chat composer's usage indicator, which needs a figure on page load,
-// before any question has been asked. Signed-in only: a guest's allowance is
-// counted per IP, which is neither theirs to see nor stable enough to show.
+// ========= daily usage controller ===============
 export const getUsage = catchAsync(async (req, res) => {
+  // the composer's dial needs a number on page load, before anything has been
+  // asked. signed-in only, a guest's allowance is counted per IP and that's
+  // neither theirs to see nor stable enough to put on screen
   const limit = dailyLimitFor(req.user!.role);
-  // Admins are unlimited, so there's nothing worth a COUNT(*) for them.
+
+  // admins are unlimited, so skip the COUNT(*) entirely for them
   const used = limit === null ? 0 : await usedToday({ userId: req.user!.id });
 
   res.status(200).json({

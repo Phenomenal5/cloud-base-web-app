@@ -1,6 +1,6 @@
 // Nasight schema.
-// Grouped into zones (identity, conversation, activity, corpus, metrics) so the
-// file stays navigable as it grows.
+// grouped into zones (identity, conversation, activity, corpus, metrics) so it
+// stays findable as it grows
 
 generator client {
   provider     = "prisma-client"
@@ -9,13 +9,13 @@ generator client {
   moduleFormat = "esm"
 }
 
-// NOTE: Prisma 7 has no `url` here. The CLI reads it from prisma.config.ts and
-// the runtime gets it through a driver adapter (see src/config/prisma.ts).
+// prisma 7 has no `url` in here any more. the CLI reads it from prisma.config.ts
+// and the runtime gets it via a driver adapter, see src/config/prisma.ts
 datasource db {
   provider = "postgresql"
 }
 
-// ─── Identity zone ───────────────────────────────────
+// ========== identity zone ==================
 
 enum Role {
   TRAINEE
@@ -23,8 +23,8 @@ enum Role {
   ADMIN
 }
 
-// An enum rather than a boolean, so adding states like SUSPENDED later doesn't
-// mean reinterpreting what the field means.
+// an enum not a boolean, so adding SUSPENDED later doesn't mean rethinking what
+// the field means
 enum UserStatus {
   ACTIVE
   BLOCKED
@@ -33,15 +33,15 @@ enum UserStatus {
 model User {
   id           String  @id @default(uuid())
   email        String  @unique
-  // Null for OAuth-only accounts; Google sign-in never sets a password.
+  // null for google-only accounts, oauth sign-in never sets a password
   passwordHash String?
   displayName  String
   role         Role       @default(TRAINEE)
   status       UserStatus @default(ACTIVE)
   emailVerified Boolean @default(false)
 
-  // Just the filename. multer writes the file under uploads/avatars/ and it's
-  // served statically from there.
+  // filename only. multer writes the file into uploads/avatars/ and express
+  // serves it from there
   avatarPath String?
 
   refreshTokens           RefreshToken[]
@@ -56,14 +56,14 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // createdAt: admin list ordering, signups-today count, recent signups.
-  // status: the blocked count and the status filter.
+  // createdAt for the admin list order and the signups-today count.
+  // status for the blocked count and the status filter
   @@index([createdAt])
   @@index([status])
   @@map("users")
 }
 
-// ─── Conversation zone ───────────────────────────────
+// ========= conversation zone ===============
 
 enum MessageRole {
   USER
@@ -83,8 +83,7 @@ model Conversation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Matches the sidebar query exactly: filter by user, order by pinned then
-  // updatedAt.
+  // matches the sidebar query exactly: by user, then pinned, then updatedAt
   @@index([userId, pinned, updatedAt])
   @@map("conversations")
 }
@@ -95,23 +94,23 @@ model Message {
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   role           MessageRole
   content        String
-  // [{ acn, reportId }] for assistant messages. JSON rather than a join table,
-  // because citations are only ever read back with their own message.
+  // [{ acn, reportId }] on assistant messages. json rather than a join table,
+  // citations are only ever read back with the message they belong to
   citations      Json?
 
   createdAt DateTime @default(now())
 
-  // NOTE: the pg_trgm GIN index on `content` used by conversation search is added
-  // by hand in the migration SQL. Prisma can't express a trigram GIN.
+  // the pg_trgm GIN index on `content` that conversation search uses is written
+  // by hand in the migration SQL, prisma can't express a trigram GIN
   @@index([conversationId, createdAt])
   @@map("messages")
 }
 
-// ─── Activity zone ───────────────────────────────────
+// ========== activity zone ============
 
-// A broadcast becomes one row per recipient, so each user has independent read
-// state. Fine at this scale; a broadcast table joined to read receipts is the
-// move if the user base gets large.
+// a broadcast writes one row per user, so everyone has their own read state.
+// fine at this size. if the user base gets big, switch to a broadcast table
+// joined to read receipts
 model Notification {
   id     String    @id @default(uuid())
   userId String
@@ -139,8 +138,8 @@ enum AiOperation {
   SUMMARIZATION
 }
 
-// One row per real provider call, for the admin dashboard. Nothing is written
-// when the dev fallbacks are in use, since those make no calls.
+// one row per real provider call, for the admin dashboard. the dev stubs make no
+// calls, so they write nothing in here
 model TokenUsage {
   id               String      @id @default(uuid())
   operation        AiOperation
@@ -155,10 +154,9 @@ model TokenUsage {
   @@map("token_usage")
 }
 
-// The audit log, which doubles as the quota counter: a day's usage is the count
-// of rows since midnight UTC. ipAddress is only set for guests, who have no user
-// id to count against. Deleting a user anonymizes their logs rather than losing
-// the history.
+// the audit log, doubling as the quota counter. a day's usage is just a count of
+// rows since midnight UTC. ipAddress is only set for guests, they've got no user
+// id to count against. deleting a user nulls the link instead of dropping the rows
 model QueryLog {
   id             String    @id @default(uuid())
   userId         String?
@@ -178,9 +176,9 @@ model QueryLog {
   @@map("query_logs")
 }
 
-// Short-lived 6-digit codes, stored as a SHA-256 hash and never in plaintext.
-// consumedAt makes a code single-use. Only the newest unconsumed code works: the
-// controller consumes the older ones when it issues a new one.
+// short-lived 6-digit codes, stored as a sha256 hash, never in plaintext.
+// consumedAt makes them single use, and only the newest one works because the
+// controller burns the older ones when it issues a new one
 model EmailVerificationToken {
   id         String    @id @default(uuid())
   codeHash   String
@@ -198,8 +196,8 @@ enum OAuthProvider {
   GOOGLE
 }
 
-// Links a user to an external identity. Google only for now; the enum leaves
-// room for others. A user can have both a password and a linked provider.
+// links a user to an external identity. google only right now, the enum leaves
+// room for more. someone can have both a password and a linked provider
 model OAuthAccount {
   id                String        @id @default(uuid())
   userId            String
@@ -213,8 +211,8 @@ model OAuthAccount {
   @@map("oauth_accounts")
 }
 
-// Same shape as email verification. A successful reset also revokes every
-// refresh token, which signs the user out everywhere.
+// same shape as email verification. a successful reset also revokes every refresh
+// token, which signs them out everywhere
 model PasswordResetToken {
   id         String    @id @default(uuid())
   codeHash   String
@@ -228,10 +226,10 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
-// ─── Corpus zone ─────────────────────────────────────
+// ========= corpus zone ===============
 
-// A fixed set, so the model can't invent categories. OTHER is the fallback when
-// its output doesn't validate.
+// a fixed set so the model can't invent its own categories. OTHER is where
+// anything that fails validation lands
 enum Category {
   HUMAN_FACTORS
   AIRCRAFT_SYSTEMS
@@ -256,8 +254,8 @@ enum JobStatus {
   FAILED
 }
 
-// An admin upload, processed by the worker off the request path. The raw CSV is
-// stored on the row because the worker is a separate process with no shared disk.
+// an admin upload, handled by the worker off the request path. the raw CSV sits
+// on the row because the worker is a separate process with no shared disk
 model IngestionJob {
   id              String    @id @default(uuid())
   uploaderId      String?
@@ -279,13 +277,13 @@ model IngestionJob {
   @@map("ingestion_jobs")
 }
 
-// One ASRS report, kept verbatim so an answer can always be traced back to its
-// source. category and severity are assigned at ingestion; summary is generated
-// on first view and cached, so unchanged text is never re-summarized.
+// one ASRS report, kept word for word so any answer can be traced back to it.
+// category and severity are set at ingestion, summary is made on first view and
+// cached, so unchanged text never gets summarised twice
 model Report {
   id         String    @id @default(uuid())
-  // ASRS Accession Number, the report's external id. Unique, so re-ingesting the
-  // same CSV upserts instead of duplicating.
+  // ASRS Accession Number, the report's id in the outside world. unique, so
+  // re-ingesting the same CSV upserts rather than duplicating
   acn        String    @unique
   narrative  String
   synopsis   String?
@@ -303,15 +301,15 @@ model Report {
 
   @@index([category])
   @@index([severity])
-  // The triage list orders by reportDate desc on every load.
+  // the triage list orders by reportDate desc every single load
   @@index([reportDate])
   @@map("reports")
 }
 
-// A slice of a narrative plus its embedding.
-// NOTE: `embedding` is Unsupported() because Prisma has no vector type, so it's
-// only ever written and read through raw SQL, never the typed client. The HNSW
-// index is added by hand in the migration SQL.
+// a slice of a narrative plus its vector.
+// `embedding` is Unsupported() because prisma has no vector type, so it only ever
+// goes in and out through raw SQL, never the typed client. the HNSW index on it
+// is written by hand in the migration SQL
 model ReportChunk {
   id         String                      @id @default(uuid())
   reportId   String
@@ -326,8 +324,8 @@ model ReportChunk {
   @@map("report_chunks")
 }
 
-// Opaque random strings; only the SHA-256 hash is stored. revokedAt covers logout
-// and rotation-on-refresh, expiresAt bounds the session.
+// opaque random strings, and we only keep the sha256. revokedAt covers logout and
+// rotation on refresh, expiresAt caps how long a session can live
 model RefreshToken {
   id        String    @id @default(uuid())
   tokenHash String    @unique
@@ -341,11 +339,11 @@ model RefreshToken {
   @@map("refresh_tokens")
 }
 
-// ─── Metrics rollup zone ─────────────────────────────
+// ========== metrics rollup zone ==============
 
-// One tiny row per UTC day, written by the nightly worker. It's what lets the
-// dashboard show all-time totals without scanning query_logs and token_usage,
-// and it's why those raw tables can be pruned at all. `day` is "YYYY-MM-DD".
+// one small row per UTC day, written by the nightly worker. this is what lets the
+// dashboard show all-time totals without scanning query_logs and token_usage, and
+// it's the reason those raw tables can be pruned at all. `day` is "YYYY-MM-DD"
 model DailyMetric {
   day              String @id
   queriesSearch    Int    @default(0)

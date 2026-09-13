@@ -1,8 +1,9 @@
 import { env } from "../config/env.js";
 import type { Role, UserStatus } from "../generated/prisma/enums.js";
 
-// The single definition of what a user looks like to a client. Everything that
-// returns a user goes through here, so passwordHash can never leak by accident.
+// one definition of what a user looks like to the outside world. every endpoint
+// that returns a user goes through here, which is what stops passwordHash ever
+// leaking out by accident
 
 export const PUBLIC_USER_SELECT = {
   id: true,
@@ -34,7 +35,8 @@ export function toPublicUser(user: PublicUserRow) {
     role: user.role,
     status: user.status,
     emailVerified: user.emailVerified,
-    // Absolute, so the client can drop it straight into an <img src>.
+    // build the full URL here, so the client can put it straight in an <img src>
+    // instead of every frontend having to know where uploads live
     avatarUrl: user.avatarPath ? `${env.publicBaseUrl}/uploads/avatars/${user.avatarPath}` : null,
     createdAt: user.createdAt,
   };

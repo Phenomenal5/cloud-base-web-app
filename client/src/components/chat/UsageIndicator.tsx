@@ -6,14 +6,14 @@ import { useGetUsageQuery } from "@/store/api";
 import { useAppSelector } from "@/store/hooks";
 import { cn, formatLocalTime, formatTimeUntil } from "@/lib/utils";
 
-// A quiet dial by the send button, not a footer count. The count sat there on
-// every keystroke and read as a countdown.
+// a quiet dial next to the send button rather than a count in the footer. the
+// count was there on every keystroke and read as a countdown.
 //
-// Signed-in only. Guest allowance is per IP, and "you're at 50%" means nothing
-// to someone with two questions. GuestBanner covers that case.
+// signed-in only. a guest's allowance is counted per IP, and "you're at 50%"
+// means nothing to someone with two questions. GuestBanner handles them
 
-// Amber past two thirds, red when nearly gone, muted below that, so the icon
-// only draws the eye when it matters.
+// amber past two thirds, red when it's nearly gone, muted below that, so the
+// icon only pulls your eye when there's something to notice
 function toneFor(percentUsed: number) {
   if (percentUsed >= 90) return "text-red-600 dark:text-red-400";
   if (percentUsed >= 67) return "text-amber-600 dark:text-amber-400";
@@ -31,7 +31,7 @@ export const UsageIndicator = () => {
   const isAuthenticated = useAppSelector((state) => state.auth.status) === "authenticated";
   const { data: usage } = useGetUsageQuery(undefined, { skip: !isAuthenticated });
 
-  // Escape closes the panel, matching the notification bell and chat drawer.
+  // escape closes the panel, same as the bell and the chat drawer
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -64,7 +64,7 @@ export const UsageIndicator = () => {
       {isOpen && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
-          {/* Opens upward: the composer sits at the bottom of the viewport, so a
+          {/* opens upward. the composer sits at the bottom of the screen, so a
  panel hung below it would be off-screen. */}
           <div className="absolute bottom-full right-0 z-20 mb-2 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface p-3 shadow-lg">
             <p className="text-xs font-medium text-muted">Daily usage</p>

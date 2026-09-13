@@ -1,10 +1,10 @@
 import * as yup from "yup";
 
-// These mirror the frontend's form schemas, so the messages match on both sides.
+// these mirror the frontend's form schemas, so the wording matches both ends
 
 export const registerSchema = yup.object({
   email: yup.string().trim().lowercase().email("Enter a valid email").required("Email is required"),
-  // Capped at 72 because bcrypt ignores anything past that (see utils/password.ts).
+  // capped at 72, bcrypt silently ignores anything past it, see utils/password.ts
   password: yup
     .string()
     .min(8, "Password must be at least 8 characters")

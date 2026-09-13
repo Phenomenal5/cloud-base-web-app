@@ -4,7 +4,7 @@ import { AppToaster } from '@/components/AppToaster'
 import { router } from '@/routes/router'
 
 const App = () => (
-  // AuthProvider wraps the router so ProtectedRoute can read a resolved session.
+  // AuthProvider wraps the router, so ProtectedRoute reads a settled session
   <AuthProvider>
     <RouterProvider router={router} />
     <AppToaster />

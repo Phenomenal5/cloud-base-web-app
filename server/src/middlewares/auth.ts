@@ -4,6 +4,7 @@ import { COOKIE_NAMES } from "../utils/cookies.js";
 import AppError from "../utils/AppError.js";
 import type { Role } from "../generated/prisma/enums.js";
 
+// cookie for browsers, Bearer header for tools and tests
 function extractToken(req: Request): string | undefined {
   const fromCookie = req.cookies?.[COOKIE_NAMES.ACCESS];
   if (fromCookie) return fromCookie;
@@ -14,31 +15,28 @@ function extractToken(req: Request): string | undefined {
   return undefined;
 }
 
-// ─── protect: require a valid access token ────────────
-//
-// Token comes from the httpOnly cookie (browsers) or a Bearer header (tools).
-// Stateless, no DB hit. Trade-off: a blocked or demoted user keeps access until
-// their token expires (15 min). Both paths revoke refresh tokens, so the
-// lock-out lands on the next refresh.
+// ========== require a valid token ==================
 export function protect(req: Request, _res: Response, next: NextFunction): void {
   try {
     const token = extractToken(req);
     if (!token) throw new AppError("Not authenticated. Please log in.", 401);
 
+    // verify only, no db hit, so this stays cheap and scales sideways. the
+    // trade-off is that blocking someone doesn't bite until their token expires
+    // (15 min). both block and demote revoke refresh tokens to cap that
     const payload = verifyAccessToken(token);
     req.user = { id: payload.sub, role: payload.role };
     next();
   } catch (error) {
-    // jwt.verify throws JsonWebTokenError / TokenExpiredError, which the global
-    // handler maps to a 401.
+    // jwt throws JsonWebTokenError / TokenExpiredError, the global handler turns
+    // both into a 401
     next(error);
   }
 }
 
-// ─── optionalAuth: attach the user if there is one ────
-//
-// For routes open to guests but richer when signed in, such as /api/ask.
+// ========= attach the user only if there is one ===============
 export function optionalAuth(req: Request, _res: Response, next: NextFunction): void {
+  // for routes guests can use but that get better when signed in, like /api/ask
   try {
     const token = extractToken(req);
     if (token) {
@@ -46,13 +44,13 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
       req.user = { id: payload.sub, role: payload.role };
     }
   } catch {
-    // An invalid or expired token here just means "treat them as a guest".
+    // swallowed on purpose. a bad or expired token here just means "guest"
   }
   next();
 }
 
-// ─── authorize: role check, mount after protect ───────
-// Rest args: authorize("ADMIN"), not authorize(["ADMIN"]).
+// ========== role check, mount after protect ============
+// rest args: authorize("ADMIN"), not authorize(["ADMIN"])
 export const authorize =
   (...roles: Role[]): RequestHandler =>
   (req, _res, next) => {

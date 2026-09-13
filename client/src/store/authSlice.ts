@@ -1,10 +1,11 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 import type { User } from "@/lib/types";
 
-// Mirrors the current user so any component can read it without repeating the
-// query. Filled by AuthProvider, cleared on a 401 by the api baseQuery.
+// mirrors the current user so any component can read it without running the
+// query again. AuthProvider fills it, the api baseQuery clears it on a 401.
 //
-// Imports nothing from the api module, keeping api -> clearUser one-way.
+// this file imports nothing from the api module on purpose, which keeps the
+// api -> clearUser dependency going one way and avoids a cycle
 
 interface AuthState {
   user: User | null;

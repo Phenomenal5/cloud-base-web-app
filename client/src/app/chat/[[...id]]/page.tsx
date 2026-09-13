@@ -12,9 +12,10 @@ import { ChatThread, type DisplayMessage } from "@/components/chat/ChatThread";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 import { GuestBanner } from "@/components/chat/GuestBanner";
 
-// Optional catch-all, so one component serves /chat and /chat/<id>. The id in
-// the path keeps refresh and back/forward on the same thread, and since both
-// URLs hit this segment, moving between them never remounts mid-stream.
+// an optional catch-all route, so this one component serves both /chat and
+// /chat/<id>. keeping the id in the path means refresh, back/forward and
+// bookmarks all land on the same thread, and because both URLs resolve to this
+// same segment, moving between them never remounts and a stream survives
 const ChatPage = () => {
   const dispatch = useAppDispatch();
   const router = useRouter();
@@ -28,20 +29,21 @@ const ChatPage = () => {
   const [messages, setMessages] = useState<DisplayMessage[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  // Set once the allowance is spent, so the composer locks rather than sending
-  // a question that can only fail.
+  // set once the day's allowance is gone, so the composer locks instead of
+  // letting them send a question that can only fail
   const [exhaustedUntil, setExhaustedUntil] = useState<string | null>(null);
 
-  // The indicator reads the getUsage cache entry, so write the stream's figure
-  // straight into it. upsert, not update, so it lands before any fetch.
+  // the dial reads the getUsage cache entry, so write the stream's number
+  // straight into it rather than keeping a second copy here. upsert not update,
+  // so it still lands when nothing has fetched it yet
   const updateUsage = (usage: UsageInfo) => {
     dispatch(api.util.upsertQueryData("getUsage", undefined, usage));
   };
 
   const [loadConversation] = useLazyGetConversationQuery();
   const cancelStreamRef = useRef<(() => void) | null>(null);
-  // Which conversation's messages are currently in state. Lets the URL effect
-  // skip reloading a thread we already have, including one we just streamed.
+  // which thread's messages are actually in state right now. lets the URL effect
+  // skip reloading something we already have, including one we just streamed
   const loadedIdRef = useRef<string | undefined>(undefined);
 
   const updateMessage = (id: string, changes: Partial<DisplayMessage>) => {
@@ -50,8 +52,8 @@ const ChatPage = () => {
     );
   };
 
-  // Sidebar clicks, back/forward and a cold refresh all arrive here as a changed
-  // URL param. The ref check is what stops it refetching over live messages.
+  // sidebar clicks, back/forward and a cold refresh all turn up here as a changed
+  // URL param. the ref check is what stops it refetching over live messages
   useEffect(() => {
     if (!isAuthenticated) return;
     if (conversationIdParam === loadedIdRef.current) return;
@@ -82,8 +84,8 @@ const ChatPage = () => {
             id: message.id,
             role: message.role,
             content: message.content,
-            // Stored citations only carry acn and reportId. The synopsis and
-            // score were streaming-only, so the chips render without them.
+            // saved citations only have acn and reportId on them. the synopsis and
+            // the score were streaming-only, so the chips render without those
             sources: message.citations?.map((citation) => ({
               acn: citation.acn,
               reportId: citation.reportId,
@@ -94,7 +96,7 @@ const ChatPage = () => {
         );
       })
       .catch(() => {
-        // Not found, or not theirs. Drop back to a fresh chat.
+        // gone, or never theirs. drop them back to a fresh chat
         if (cancelled) return;
         loadedIdRef.current = undefined;
         setMessages([]);
@@ -106,8 +108,8 @@ const ChatPage = () => {
     };
   }, [conversationIdParam, isAuthenticated, loadConversation, router]);
 
-  // Someone who leaves the tab open past midnight UTC should get their questions
-  // back without reloading. The delay is at most 24h, well inside setTimeout's range.
+  // someone who leaves the tab open past midnight UTC should get their questions
+  // back without reloading. at most 24h, well inside what setTimeout can hold
   useEffect(() => {
     if (!exhaustedUntil) return;
     const millisecondsUntilReset = Math.max(0, new Date(exhaustedUntil).getTime() - Date.now());
@@ -115,7 +117,7 @@ const ChatPage = () => {
     return () => clearTimeout(timer);
   }, [exhaustedUntil]);
 
-  // Point the URL at it and let the effect above do the loading.
+  // point the URL at it and let the effect above do the actual loading
   const selectConversation = (conversationId: string) => {
     setIsSidebarOpen(false);
     router.push(`/chat/${conversationId}`);
@@ -160,13 +162,17 @@ const ChatPage = () => {
         updateMessage(assistantMessageId, { streaming: false });
         setIsStreaming(false);
 
-        // Adopt the id the server minted for this first message.
+        // the server made a conversation for this first message, so take its id
+        // and put it in the URL.
         //
-        // After streaming, never during: a mid-stream URL change starts a Next
-        // router transition, React defers the streaming updates caught in it,
-        // and nothing paints until a click forces a flush. loadedIdRef first
-        // stops the URL effect reloading a thread we have; replaceState waits a
-        // tick so this render paints.
+        // this has to happen after streaming, never during. changing the URL
+        // mid-stream, even through the History API, kicks off a next router
+        // transition, and react defers the low-priority streaming updates caught
+        // in it, so nothing paints until a click forces a flush. that was the
+        // "I have to click the page for the answer to appear" bug. setting
+        // loadedIdRef first stops the URL effect reloading a thread we already
+        // have, and replaceState waits a tick so this last render paints before
+        // the router re-syncs the pathname
         if (done.conversationId && !activeConversationId) {
           const newConversationId = done.conversationId;
           loadedIdRef.current = newConversationId;
@@ -178,9 +184,10 @@ const ChatPage = () => {
       onError: (error) => {
         updateMessage(assistantMessageId, { streaming: false, error });
         setIsStreaming(false);
-        // Remember the reset time so the composer can explain itself. The gate
-        // refuses before the handler runs, so no usage event arrives here and
-        // the indicator is pushed to 100% from the refusal itself.
+        // remember the reset time so the composer can explain itself instead of
+        // letting them fire off another doomed question. the quota gate refuses
+        // before the handler runs, so no usage event ever arrives on this path,
+        // which is why the dial is pushed to 100% from the refusal itself
         if (error.code === "QUOTA_EXCEEDED" && error.resetsAt) {
           setExhaustedUntil(error.resetsAt);
           updateUsage({
@@ -197,7 +204,7 @@ const ChatPage = () => {
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
-      {/* The header spans the full width; the sidebar and chat sit in a row below. */}
+      {/* header spans the full width, sidebar and chat sit in a row underneath */}
       <AppHeader onMenuClick={isAuthenticated ? () => setIsSidebarOpen(true) : undefined} />
 
       <div className="flex flex-1 overflow-hidden">

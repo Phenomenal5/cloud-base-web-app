@@ -1,8 +1,8 @@
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
 import type { User } from '@/lib/types'
 
-// Mirrors the current user. Filled in from /auth/me by AuthProvider, cleared on
-// a 401 by the api baseQuery.
+// mirrors the current user. AuthProvider fills it from /auth/me, the api
+// baseQuery clears it on a 401
 
 interface AuthState {
   user: User | null

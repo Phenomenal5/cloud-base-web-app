@@ -5,9 +5,9 @@ import { Provider } from "react-redux";
 import { setupListeners } from "@reduxjs/toolkit/query";
 import { makeStore } from "./store";
 
-// useState's lazy initializer runs makeStore exactly once per client, without
-// touching a ref during render. setupListeners is what enables RTK Query's
-// refetch on focus and on reconnect.
+// the lazy useState initialiser runs makeStore exactly once per client, and
+// without poking a ref during render. setupListeners is what turns on RTK
+// Query's refetch-on-focus and refetch-on-reconnect
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
   const [store] = useState(makeStore);
 

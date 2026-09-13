@@ -10,8 +10,8 @@ const MAX_QUERY_LENGTH = 500;
 interface ChatComposerProps {
   onSend: (text: string) => void;
   disabled?: boolean;
-  // Set once the daily allowance is spent. Locks the box rather than letting
-  // someone type out a question that can only fail.
+  // set once they're out of questions. locks the box instead of letting someone
+  // type out a whole question that can only fail
   exhaustedUntil?: string | null;
 }
 
@@ -28,16 +28,17 @@ export const ChatComposer = ({ onSend, disabled, exhaustedUntil }: ChatComposerP
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // Enter sends, Shift+Enter adds a newline.
+    // enter sends, shift+enter is a newline
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       submit();
     }
   };
 
-  // Reset time when they're out, otherwise the standard grounding note. No
-  // running count: "N of M left today" under every keystroke read as a countdown.
-  // Usage lives behind the dial by the send button instead.
+  // the reset time when they're out, otherwise the usual grounding note. no
+  // running count here on purpose, "N of M left today" sitting under every
+  // keystroke turned the composer into a countdown clock. it lives behind the
+  // dial next to the send button now, for whoever actually wants to look
   const footerText = () => {
     if (exhaustedUntil) {
       return `No questions left today, resets ${formatTimeUntil(exhaustedUntil)}, at ${formatLocalTime(exhaustedUntil)}.`;
@@ -57,8 +58,8 @@ export const ChatComposer = ({ onSend, disabled, exhaustedUntil }: ChatComposerP
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={handleKeyDown}
-          // Only the quota disables the box. `disabled` just means a stream is in
-          // flight, and you should still be able to type your next question.
+          // only the quota actually disables the box. `disabled` just means a stream is
+          // running, and you should still be able to type the next question while it does
           disabled={isOutOfQuota}
           placeholder={
             isOutOfQuota
@@ -68,7 +69,7 @@ export const ChatComposer = ({ onSend, disabled, exhaustedUntil }: ChatComposerP
           maxLength={MAX_QUERY_LENGTH}
           className="max-h-40 flex-1 resize-none bg-transparent px-2 py-1.5 text-sm outline-none placeholder:text-muted disabled:cursor-not-allowed"
         />
-        {/* Renders nothing for guests, who have the sign-up banner instead. */}
+        {/* renders nothing for guests, they get the sign-up banner instead */}
         <UsageIndicator />
         <button
           type="button"

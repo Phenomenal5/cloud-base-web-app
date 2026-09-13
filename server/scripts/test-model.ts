@@ -2,9 +2,9 @@
 import "dotenv/config";
 import OpenAI from "openai";
 
-// Smoke test for OPENAI_API_KEY: one tiny chat completion and one embedding, the
-// two model families the app actually uses. Reads server/.env directly and never
-// boots the app or the database.
+// smoke test for OPENAI_API_KEY. one tiny chat completion and one embedding,
+// which are the only two model families this app uses. reads server/.env itself
+// and never boots the app or touches the database
 //
 //   npm run test:model
 
@@ -12,14 +12,14 @@ const apiKey = process.env.OPENAI_API_KEY?.trim();
 const chatModel = process.env.CHAT_MODEL?.trim() || "gpt-4o-mini";
 const embeddingModel = process.env.EMBEDDING_MODEL?.trim() || "text-embedding-3-small";
 
-// Enough to tell which key is loaded, never the secret itself.
+// enough to tell which key is loaded, never the key itself
 function maskKey(key: string): string {
   if (key.length <= 12) return "sk-...";
   return `${key.slice(0, 6)}...${key.slice(-4)}`;
 }
 
-// The status codes here are the ones that actually come up, and they mean very
-// different things, so name them rather than printing a raw error.
+// these are the status codes that actually come up, and they mean very
+// different things, so name them instead of dumping a raw error
 function describeError(error: unknown): string {
   const status = (error as { status?: number }).status;
   const message = error instanceof Error ? error.message : String(error);
@@ -46,8 +46,8 @@ async function main(): Promise<void> {
     const startedAt = Date.now();
     const completion = await client.chat.completions.create({
       model: chatModel,
-      // max_completion_tokens, not max_tokens: newer models reject the latter.
-      // Headroom so a reasoning model doesn't spend the budget before replying.
+      // max_completion_tokens, not max_tokens, newer models reject the old name.
+      // the headroom is so a reasoning model doesn't burn the budget before replying
       max_completion_tokens: 50,
       messages: [{ role: "user", content: "Reply with the single word: pong" }],
     });
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
       input: "Nasight embedding smoke test.",
     });
     const dimensions = embedding.data[0]?.embedding.length ?? 0;
-    // A mismatch here means the vector column in the schema won't accept it.
+    // if this doesn't match, the vector column in the schema won't take it
     const note = dimensions === 1536 ? "" : "  WARNING: expected 1536 to match the schema";
     console.log(`embeddings OK (${Date.now() - startedAt}ms), ${dimensions} dimensions${note}`);
     console.log(`  tokens used: ${embedding.usage?.total_tokens ?? "?"}\n`);

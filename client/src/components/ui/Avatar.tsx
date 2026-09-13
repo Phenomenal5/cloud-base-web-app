@@ -7,7 +7,7 @@ interface AvatarProps {
   className?: string;
 }
 
-// First and last initial, falling back to "?" for an empty name.
+// first and last initial, or "?" if the name is empty
 const initials = (name: string): string => {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const first = parts[0]?.[0] ?? "";
@@ -18,8 +18,8 @@ const initials = (name: string): string => {
 export const Avatar = ({ name, src, size = 32, className }: AvatarProps) => {
   if (src) {
     return (
-      // A plain img rather than next/image, so the API host doesn't need to be
-      // declared in next.config remote patterns.
+      // plain img, not next/image, so the API host doesn't have to be listed in
+      // next.config's remote patterns
       // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}

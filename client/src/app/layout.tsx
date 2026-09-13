@@ -5,7 +5,8 @@ import { StoreProvider } from "@/store/StoreProvider";
 import { AuthProvider } from "@/store/AuthProvider";
 import { AppToaster } from "@/components/AppToaster";
 
-// Runs before paint so the saved theme is applied without a flash of the wrong one.
+// runs before paint, so the saved theme is on before anything renders and you
+// never see a flash of the wrong one
 const themeInitScript = `try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}`;
 
 const geistSans = Geist({
@@ -25,8 +26,9 @@ export const metadata: Metadata = {
 };
 
 const RootLayout = ({ children }: Readonly<{ children: React.ReactNode }>) => (
-  // suppressHydrationWarning on both. The script above classes <html> before
-  // hydration, and extensions mutate <body>. Harmless, but React flags both.
+  // suppressHydrationWarning on both of these. the script above adds a class to
+  // <html> before react hydrates, and browser extensions mutate <body>. both are
+  // harmless but they trip react's attribute mismatch check
   <html
     lang="en"
     className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}

@@ -21,11 +21,13 @@ export const IngestionPage = () => {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadIngestion, { isLoading }] = useUploadIngestionMutation()
 
-  // Poll only while a job is running. Once everything settles the list can't
-  // change on its own. Uploading invalidates the tag and restarts polling.
+  // only poll while something is actually running. once every job has settled the
+  // list can't change on its own, so polling would just be wasted requests.
+  // uploading invalidates the list tag, which brings the new job in and starts
+  // the polling again.
   //
-  // useQueryState reads the cache without firing a request, which is what lets
-  // the interval below depend on the data it controls.
+  // useQueryState reads the cache without firing its own request, which is what
+  // lets the interval below depend on the data it controls
   const { data: cachedJobs = [] } = api.endpoints.listIngestions.useQueryState()
   const hasActiveJob = cachedJobs.some((job) => isActive(job.status))
 
@@ -49,7 +51,7 @@ export const IngestionPage = () => {
     } catch (error) {
       toast.error(getApiErrorMessage(error))
     } finally {
-      // Reset the input, or picking the same file again fires no change event.
+      // clear the input, or picking the same file twice fires no change event
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
@@ -75,7 +77,7 @@ export const IngestionPage = () => {
           )}
           Upload CSV
         </button>
-        {/* The real input is hidden; the styled button above triggers it. */}
+        {/* the real input is hidden, the styled button above clicks it */}
         <input
           ref={fileInputRef}
           type='file'

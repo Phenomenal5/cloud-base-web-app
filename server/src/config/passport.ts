@@ -4,11 +4,13 @@ import { prisma } from "./prisma.js";
 import { env, isGoogleOAuthEnabled } from "./env.js";
 import { logger } from "./logger.js";
 
-// Passport runs the OAuth code exchange only. No passport sessions: the callback
-// controller mints our own JWT cookie, so credential and Google login converge.
+// passport only does the oauth code exchange here. no passport sessions, the
+// callback controller mints our own JWT cookie, so password login and google
+// login end up in exactly the same place.
 //
-// Confidential-client code flow, secured by the client secret. PKCE would need a
-// session store to hold the verifier across the redirect.
+// this is the confidential-client code flow, where the client secret secures the
+// exchange. PKCE would need somewhere to keep the verifier across the redirect,
+// which means adding a session store
 
 export function configurePassport(): void {
   if (!isGoogleOAuthEnabled) {
@@ -34,8 +36,9 @@ export function configurePassport(): void {
   );
 }
 
-// Only trust the address if Google verified it. Linking on an unverified one
-// lets anyone who can set that address take over the matching local account.
+// only trust the address when google says it verified it. linking on an
+// unverified one would let anyone who can set that address on a google account
+// walk straight into the matching local account
 function verifiedEmail(profile: Profile): string | undefined {
   const claims = profile._json as { email?: string; email_verified?: boolean };
   if (!claims.email_verified) return undefined;
@@ -47,21 +50,21 @@ async function findOrCreateGoogleUser(profile: Profile) {
   const email = verifiedEmail(profile);
   const displayName = profile.displayName || email?.split("@")[0] || "Google User";
 
-  // Already linked, nothing else to do.
+  // already linked, nothing to do
   const linked = await prisma.oAuthAccount.findUnique({
     where: { provider_providerAccountId: { provider: "GOOGLE", providerAccountId } },
     include: { user: true },
   });
   if (linked) return linked.user;
 
-  // Otherwise attach to the account with that email, or create one. Google has
-  // already verified the address, so these users skip our own email step.
+  // otherwise attach to whoever owns that email, or make a new account. google
+  // has already verified the address, so these users skip our own email step
   let user = email ? await prisma.user.findUnique({ where: { email } }) : null;
   if (!user) {
     user = await prisma.user.create({
       data: {
-        // Falls back to a placeholder so an account with no usable email still
-        // gets a unique, non-colliding row.
+        // fall back to a placeholder, so an account with no usable email still gets a
+        // unique row instead of colliding
         email: email ?? `google_${providerAccountId}@nasight.local`,
         displayName,
         emailVerified: Boolean(email),

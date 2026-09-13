@@ -16,7 +16,7 @@ export const Button = ({
   ...props
 }: ButtonProps) => (
   <button
-    // Disabled while loading, so a slow request can't be submitted twice.
+    // disabled while loading, so a slow request can't be fired off twice
     disabled={disabled || loading}
     className={cn(
       'inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60',

@@ -1,8 +1,9 @@
 import swaggerJsdoc from "swagger-jsdoc";
 import { env } from "./env.js";
 
-// Reusable components live here so the per-route @openapi blocks stay short.
-// Paths are scanned out of those blocks in the route files.
+// shared schemas and responses live here so the @openapi block on each route can
+// just $ref them and stay short. the paths themselves are scanned out of those
+// blocks in routes/
 
 const options: swaggerJsdoc.Options = {
   definition: {
@@ -180,10 +181,11 @@ const options: swaggerJsdoc.Options = {
         },
       },
     },
-    // Endpoints require a session by default; public ones opt out with `security: []`.
+    // everything needs a session by default, public routes opt out with security: []
     security: [{ cookieAuth: [] }, { bearerAuth: [] }],
   },
-  // tsc keeps comments, so the compiled routes still carry the @openapi blocks.
+  // point at dist in prod. tsc keeps comments, so the compiled files still have
+  // the @openapi blocks in them
   apis: [env.isProduction ? "./dist/routes/*.js" : "./src/routes/*.ts"],
 };
 

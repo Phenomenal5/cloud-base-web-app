@@ -6,9 +6,9 @@ import { chunkText } from "../utils/chunk.js";
 import { embedTexts, toVectorLiteral } from "./embeddingService.js";
 import { classifyReport } from "./classificationService.js";
 
-// Report -> chunks -> embeddings -> Postgres/pgvector. Shared by the seed script
-// and the background worker. Idempotent by ACN: re-ingesting a report replaces
-// its chunks instead of duplicating them.
+// report -> chunks -> embeddings -> postgres. used by both the seed script and
+// the worker. keyed on ACN, so re-ingesting the same report replaces its chunks
+// rather than doubling them up
 
 export interface RawReport {
   acn: string;
@@ -23,11 +23,12 @@ export interface IngestResult {
   skipped: number;
 }
 
-// The typed client can't write the embedding column (Unsupported()), so chunks
-// go in through raw SQL. One multi-row INSERT, not one per chunk: a large report
-// makes dozens, and a round trip each is what makes ingestion crawl. Still
-// parameterized, not interpolated.
+// write chunks + vectors straight to SQL, the typed client can't touch the
+// embedding column because it's Unsupported()
 async function insertChunks(reportId: string, pieces: string[], vectors: number[][]) {
+  // one multi-row INSERT instead of one per chunk. a big report makes dozens and
+  // a round trip each is what made ingestion crawl. still parameterised
+
   const rows = pieces.map(
     (content, index) =>
       Prisma.sql`(${randomUUID()}, ${reportId}, ${index}, ${content}, ${toVectorLiteral(vectors[index]!)}::vector, now())`,
@@ -45,20 +46,24 @@ export async function ingestReports(records: RawReport[]): Promise<IngestResult>
   let skipped = 0;
 
   for (const record of records) {
+    // no ACN or no narrative means there's nothing worth storing
     if (!record.acn?.trim() || !record.narrative?.trim()) {
       skipped++;
       continue;
     }
 
+    // split the narrative into overlapping windows
     const pieces = chunkText(record.narrative);
     if (pieces.length === 0) {
       skipped++;
       continue;
     }
 
-    // Classify at ingestion time so the triage view has category and severity
-    // ready without another LLM call on read.
+    // classify now, at ingest, so the triage page doesn't need an LLM call just
+    // to show a category
     const classification = await classifyReport(record.narrative);
+
+    // embed every chunk in one request
     const vectors = await embedTexts(pieces);
 
     const fields = {
@@ -72,11 +77,14 @@ export async function ingestReports(records: RawReport[]): Promise<IngestResult>
 
     const report = await prisma.report.upsert({
       where: { acn: record.acn },
-      // The narrative may have changed, so any cached summary is now stale.
+      // null the summary on update, the narrative may have changed so whatever
+      // we cached is now describing the old text
       update: { ...fields, summary: null },
       create: { acn: record.acn, ...fields },
     });
 
+    // clear the old chunks before writing the new ones, otherwise a re-ingest
+    // leaves both sets in there and search returns duplicates
     await prisma.reportChunk.deleteMany({ where: { reportId: report.id } });
     await insertChunks(report.id, pieces, vectors);
 

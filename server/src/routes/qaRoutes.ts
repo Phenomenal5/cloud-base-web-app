@@ -3,7 +3,7 @@ import { ask, getUsage } from "../controllers/qaController.js";
 import { optionalAuth, protect } from "../middlewares/auth.js";
 import { enforceQueryQuota } from "../middlewares/quota.js";
 
-// GET rather than POST because EventSource can only issue a GET.
+// GET not POST, EventSource can only ever do a GET
 
 const router = Router();
 
@@ -74,8 +74,8 @@ const router = Router();
  *                         resetsAt: { type: string, format: date-time, nullable: true }
  *       401: { $ref: '#/components/responses/Unauthorized' }
  */
-// Before "/" for readability only. Express matches the full path, so order
-// doesn't matter here.
+// declared before "/" purely for readability, express matches on the full path
+// so the order of these two doesn't actually matter
 router.get("/usage", protect, getUsage);
 
 router.get("/", optionalAuth, enforceQueryQuota, ask);

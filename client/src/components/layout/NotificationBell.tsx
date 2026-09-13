@@ -10,8 +10,8 @@ import {
 import type { AppNotification } from "@/lib/types";
 import { cn, formatRelativeTime } from "@/lib/utils";
 
-// Admin broadcasts are written straight to Postgres, with no socket or push
-// channel, so polling is the only way a new one reaches an open tab.
+// admin broadcasts go straight into postgres, there's no socket or push channel
+// anywhere in this stack, so polling is the only way an open tab finds out
 const POLL_INTERVAL_MS = 60_000;
 
 export const NotificationBell = () => {
@@ -26,7 +26,7 @@ export const NotificationBell = () => {
   const notifications = data?.notifications ?? [];
   const unreadCount = data?.unread ?? 0;
 
-  // Escape closes the panel, matching the chat drawer.
+  // escape closes the panel, same as the chat drawer
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -36,7 +36,7 @@ export const NotificationBell = () => {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen]);
 
-  // Notifications carry no link target, so a click is purely a read receipt.
+  // notifications have nowhere to link to, so a click is only a read receipt
   const handleRead = async (notification: AppNotification) => {
     if (notification.readAt) return;
     await markNotificationRead(notification.id)
@@ -93,8 +93,8 @@ export const NotificationBell = () => {
                 <ul className="flex flex-col gap-0.5">
                   {notifications.map((notification) => (
                     <li key={notification.id}>
-                      {/* Spans, not divs. A <button> takes phrasing content
-                          only; a div inside one is invalid HTML. */}
+                      {/* spans, not divs. a <button> only takes phrasing
+                      content, a div inside one is invalid HTML */}
                       <button
                         type="button"
                         onClick={() => handleRead(notification)}

@@ -1,7 +1,8 @@
 import bcrypt from "bcrypt";
 
-// bcrypt silently truncates at 72 bytes, so the register and reset schemas cap
-// length there. Without it, only the first 72 bytes would ever be checked.
+// bcrypt quietly cuts input off at 72 bytes, which is why the register and reset
+// schemas cap password length there. without the cap someone sets a long
+// password and only the first 72 bytes are ever actually checked
 
 const SALT_ROUNDS = 12;
 

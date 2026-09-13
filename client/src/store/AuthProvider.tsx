@@ -5,8 +5,8 @@ import { useMeQuery } from "./api";
 import { useAppDispatch } from "./hooks";
 import { setUser, clearUser } from "./authSlice";
 
-// Runs /auth/me once on mount and mirrors the result into the auth slice. A 401
-// here just means guest, so it resolves to the guest state rather than erroring.
+// hits /auth/me once on mount and copies the result into the auth slice. a 401
+// here isn't a failure, it just means they're a guest
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const dispatch = useAppDispatch();
   const { data, isSuccess, isError } = useMeQuery();

@@ -8,7 +8,7 @@ import { IngestionPage } from '@/pages/IngestionPage'
 import { BroadcastsPage } from '@/pages/BroadcastsPage'
 
 export const router = createBrowserRouter([
-  // Outside the protected branch, or signing in would be impossible.
+  // outside the protected branch, or signing in would be impossible
   { path: '/login', element: <LoginPage /> },
   {
     path: '/',
@@ -24,7 +24,7 @@ export const router = createBrowserRouter([
       { path: 'broadcasts', element: <BroadcastsPage /> },
     ],
   },
-  // Unknown paths fall back to the dashboard, which redirects to /login if the
-  // visitor isn't signed in.
+  // anything unknown falls through to the dashboard, which sends them to /login
+  // if they aren't signed in
   { path: '*', element: <Navigate to='/' replace /> },
 ])

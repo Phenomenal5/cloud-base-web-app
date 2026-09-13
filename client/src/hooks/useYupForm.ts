@@ -3,10 +3,9 @@
 import { useState, type ChangeEvent, type FormEvent } from "react";
 import * as yup from "yup";
 
-// React state plus Yup validation, without a form library. Validates the whole
-// schema on submit and clears a field's error as the user edits it. onSubmit
-// receives the validated values, so transforms like a lowercased email are
-// already applied.
+// react state plus yup, no form library. validates the whole schema on submit
+// and clears a field's error as soon as they start fixing it. onSubmit gets the
+// validated values, so things like the lowercased email are already applied
 
 type Errors<T> = Partial<Record<keyof T, string>>;
 
@@ -28,8 +27,8 @@ export function useYupForm<T extends Record<string, string>>({
   function handleChange(event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
     const { name, value } = event.target;
     setValues((previousValues) => ({ ...previousValues, [name]: value }));
-    // Only touch state if there's an error to clear, so typing in a clean field
-    // doesn't re-render on every keystroke.
+    // only touch state if there's actually an error to clear, otherwise typing in
+    // a clean field re-renders on every keystroke
     setErrors((previousErrors) =>
       previousErrors[name as keyof T] ? { ...previousErrors, [name]: undefined } : previousErrors,
     );
@@ -51,8 +50,7 @@ export function useYupForm<T extends Record<string, string>>({
     } catch (validationError) {
       if (validationError instanceof yup.ValidationError) {
         const fieldErrors: Errors<T> = {};
-        // First error per field only; a list of three complaints about one input
-        // is noise.
+        // first error per field only, three complaints about one input is noise
         for (const issue of validationError.inner) {
           const fieldName = issue.path as keyof T | undefined;
           if (fieldName && !fieldErrors[fieldName]) fieldErrors[fieldName] = issue.message;

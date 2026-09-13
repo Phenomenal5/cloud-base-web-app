@@ -10,8 +10,8 @@ interface AlertProps {
 
 export const Alert = ({ variant = "error", children }: AlertProps) => (
   <div
-    // "alert" interrupts a screen reader, which is right for an error but rude
-    // for a success message, so those announce politely instead.
+    // role="alert" cuts a screen reader off mid-sentence. right for an error, rude
+    // for a success message, so those announce politely instead
     role={variant === "error" ? "alert" : "status"}
     className={cn(
       "rounded-lg px-3 py-2 text-sm",

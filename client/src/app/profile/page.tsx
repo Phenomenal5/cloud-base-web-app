@@ -28,8 +28,8 @@ const profileSchema = yup.object({
     .required("Name is required"),
 });
 
-// Split out so the form only mounts once the user is loaded and can initialize
-// with real values rather than empty ones.
+// split out so the form only mounts once the user has loaded, and can start
+// with their real values instead of empty ones
 const ProfileForm = ({ user }: { user: User }) => {
   const [updateProfile] = useUpdateProfileMutation();
   const [uploadAvatar, { isLoading: isUploading }] = useUploadAvatarMutation();
@@ -62,7 +62,7 @@ const ProfileForm = ({ user }: { user: User }) => {
     } catch (error) {
       toast.error(getApiErrorMessage(error));
     } finally {
-      // Reset the input, or picking the same file again fires no change event.
+      // clear the input, or picking the same file twice fires no change event
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
@@ -110,7 +110,7 @@ const ProfileForm = ({ user }: { user: User }) => {
           </div>
           <p className="text-xs text-muted">JPG or PNG, up to 2&nbsp;MB.</p>
         </div>
-        {/* The real input is hidden; the styled button above triggers it. */}
+        {/* the real input is hidden, the styled button above clicks it */}
         <input
           ref={fileInputRef}
           type="file"
@@ -129,7 +129,7 @@ const ProfileForm = ({ user }: { user: User }) => {
           error={form.errors.displayName}
         />
         <div className="flex flex-col gap-1.5">
-          {/* Read-only: changing the email would mean re-verifying it. */}
+          {/* read-only, changing the email would mean verifying it again */}
           <label className="text-sm font-medium">Email</label>
           <p className="rounded-lg border border-border bg-surface-2 px-3 py-2 text-sm text-muted">
             {user.email}

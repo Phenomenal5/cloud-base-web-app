@@ -21,7 +21,7 @@ const CARD_CLASS = 'rounded-xl border border-border bg-surface p-4'
 
 const formatNumber = (value: number): string => value.toLocaleString()
 
-// EMBEDDING -> "Embedding"
+// EMBEDDING becomes "Embedding"
 const formatOperation = (operation: AiOperation): string => {
   const word = operation.toLowerCase()
   return word.charAt(0).toUpperCase() + word.slice(1)
@@ -83,8 +83,8 @@ export const DashboardPage = () => {
           icon={Cpu}
           label='Tokens used'
           value={formatNumber(metrics.tokens.total)}
-          // Zero almost always means the dev fallbacks are running, not that
-          // nobody has asked anything.
+          // zero here nearly always means the dev stubs are running, not that
+          // nobody has asked anything
           hint={
             metrics.tokens.total === 0
               ? 'set an OpenAI key to track'

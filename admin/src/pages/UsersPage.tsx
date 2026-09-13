@@ -60,7 +60,7 @@ export const UsersPage = () => {
       <h1 className='text-xl font-semibold'>Users</h1>
       <p className='mt-1 text-sm text-muted'>Manage roles and account access.</p>
 
-      {/* Every filter change resets to page 1: page 4 of the old result set
+      {/* every filter change drops back to page 1. page 4 of the old result set
           usually doesn't exist in the new one. */}
       <div className='mt-5 flex flex-wrap gap-2'>
         <input
@@ -120,7 +120,7 @@ export const UsersPage = () => {
             </thead>
             <tbody className='divide-y divide-border'>
               {data.users.map((user) => {
-                // The API rejects self-edits too; this just avoids offering it.
+                // the API refuses self-edits as well, this just stops us offering it
                 const isSelf = user.id === currentUser?.id
 
                 return (

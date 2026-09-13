@@ -24,7 +24,7 @@ const RegisterPage = () => {
       try {
         await register(values).unwrap();
         toast.success("Account created, check your email for a code");
-        // Registering doesn't create a session; entering the emailed code does.
+        // registering doesn't log anyone in, entering the emailed code is what does
         router.push(`/verify-email?email=${encodeURIComponent(values.email)}`);
       } catch (error) {
         toast.error(getApiErrorMessage(error, "Could not create your account."));

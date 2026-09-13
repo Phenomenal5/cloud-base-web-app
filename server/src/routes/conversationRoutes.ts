@@ -9,7 +9,7 @@ import { protect } from "../middlewares/auth.js";
 import { validate } from "../middlewares/validate.js";
 import { updateConversationSchema } from "../validators/conversationSchemas.js";
 
-// Conversations are per-user, so every route here needs a session.
+// conversations belong to a user, so everything here needs a session
 
 const router = Router();
 

@@ -25,7 +25,7 @@ const ResetPasswordForm = () => {
     onSubmit: async (values) => {
       try {
         await resetPassword(values).unwrap();
-        // A reset revokes every session, so there's nothing to route into.
+        // a reset kills every session, so there's nothing to route them into
         toast.success("Password reset, please sign in");
         router.push("/login");
       } catch (error) {

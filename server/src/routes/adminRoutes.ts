@@ -13,8 +13,8 @@ import { uploadCsv } from "../middlewares/upload.js";
 import { updateRoleSchema, updateStatusSchema } from "../validators/adminSchemas.js";
 import { broadcastSchema } from "../validators/notificationSchemas.js";
 
-// Everything under /api/admin is ADMIN-only, gated once here rather than
-// per-route, so a new route can't accidentally ship unprotected.
+// everything under /api/admin is ADMIN only, gated once here rather than route
+// by route, so a new route can't accidentally go out unprotected
 
 const router = Router();
 

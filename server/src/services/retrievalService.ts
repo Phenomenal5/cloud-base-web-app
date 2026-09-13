@@ -1,9 +1,7 @@
 import { prisma } from "../config/prisma.js";
 import { embedQuery, toVectorLiteral } from "./embeddingService.js";
 
-// Embed the question, find the nearest chunks by cosine distance (pgvector's
-// `<=>`, served by the HNSW index), then collapse to distinct reports keeping
-// each one's best chunk. This is the retrieval half of the RAG pipeline.
+// the retrieval half of the RAG pipeline
 
 export interface SearchHit {
   reportId: string;
@@ -24,10 +22,11 @@ export async function semanticSearch(
   topReports = 5,
   minSimilarity = 0,
 ): Promise<SearchHit[]> {
+  // embed the question the same way the chunks were embedded
   const literal = toVectorLiteral(await embedQuery(query));
 
-  // Over-fetch, because several of the best chunks often belong to the same
-  // report and we'd otherwise end up with fewer than topReports distinct ones.
+  // grab more than we need. several of the best chunks usually come from the
+  // same report, so asking for exactly topReports leaves us short after dedupe
   const chunkLimit = topReports * 4;
 
   const rows = await prisma.$queryRaw<ChunkRow[]>`
@@ -39,12 +38,14 @@ export async function semanticSearch(
     LIMIT ${chunkLimit}
   `;
 
+  // one entry per report, keeping whichever chunk scored highest
   const bestByReport = new Map<string, ChunkRow>();
   for (const row of rows) {
     const current = bestByReport.get(row.reportId);
     if (!current || row.similarity > current.similarity) bestByReport.set(row.reportId, row);
   }
 
+  // drop anything too weak, sort best first, then cut to the number asked for
   const ranked = [...bestByReport.values()]
     .filter((row) => row.similarity >= minSimilarity)
     .sort((a, b) => b.similarity - a.similarity)
@@ -52,6 +53,7 @@ export async function semanticSearch(
 
   if (ranked.length === 0) return [];
 
+  // now go get the ACN and synopsis for the winners
   const reports = await prisma.report.findMany({
     where: { id: { in: ranked.map((row) => row.reportId) } },
     select: { id: true, acn: true, synopsis: true },

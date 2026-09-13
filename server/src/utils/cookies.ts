@@ -1,10 +1,7 @@
 import type { Response } from "express";
 import { env } from "../config/env.js";
 
-// Tokens ride in httpOnly cookies so no JWT is ever readable from client JS.
-// In production the client and API are on different sites, which needs
-// SameSite=None + Secure; in dev they're both on localhost, so Lax works
-// over plain http.
+// tokens live in httpOnly cookies, so no JS on the page can ever read a JWT
 
 export const COOKIE_NAMES = {
   ACCESS: "accessToken",
@@ -12,6 +9,9 @@ export const COOKIE_NAMES = {
 } as const;
 
 function baseOptions() {
+  // in prod the client and API are on different domains, which forces
+  // SameSite=None + Secure. in dev they're both localhost so Lax works over http
+
   return {
     httpOnly: true,
     secure: env.isProduction,
@@ -35,7 +35,7 @@ export function setAuthCookies(
 }
 
 export function clearAuthCookies(res: Response): void {
-  // Options must match how the cookies were set, or the browser won't clear them.
+  // options have to match how they were set or the browser ignores the clear
   res.clearCookie(COOKIE_NAMES.ACCESS, baseOptions());
   res.clearCookie(COOKIE_NAMES.REFRESH, baseOptions());
 }

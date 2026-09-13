@@ -1,4 +1,4 @@
-// These mirror the backend's response shapes.
+// these mirror what the API actually sends back
 
 export type Role = "TRAINEE" | "ANALYST" | "ADMIN";
 export type UserStatus = "ACTIVE" | "BLOCKED";
@@ -39,7 +39,7 @@ export interface ChatMessage {
   createdAt: string;
 }
 
-// A retrieved report shown as a source alongside an answer.
+// a report that came back from retrieval, shown as a source under an answer
 export interface Source {
   acn: string;
   reportId: string;
@@ -95,8 +95,8 @@ export interface ReportFilters {
   page?: number;
 }
 
-// AppNotification, not Notification: `Notification` is a DOM global, so a missing
-// import would type-check against the browser's one instead of failing.
+// AppNotification, not Notification. `Notification` is a DOM global, so a file
+// that forgot the import would quietly type-check against the browser's one
 export interface AppNotification {
   id: string;
   title: string;
@@ -105,15 +105,15 @@ export interface AppNotification {
   createdAt: string;
 }
 
-// Feed and count come back together, so badge and list can't disagree.
+// feed and count come back together so the badge can't disagree with the list
 export interface NotificationFeed {
   notifications: AppNotification[];
   unread: number;
 }
 
-// Today's queries against the daily allowance. The UI shows `percentUsed` only,
-// since "18 of 30 left" turned the composer into a countdown. Admins are
-// unlimited, which returns null in every field but `used`.
+// today's questions against the daily allowance. the UI only shows percentUsed,
+// "18 of 30 left" turned the composer into a countdown clock. admins are
+// unlimited, which comes back as null in everything except `used`
 export interface UsageInfo {
   limit: number | null;
   used: number;
@@ -127,7 +127,7 @@ export interface Tokens {
   refreshToken: string;
 }
 
-// Every successful API response has this shape.
+// every successful response from the API looks like this
 export interface ApiEnvelope<T> {
   message?: string;
   data: T;

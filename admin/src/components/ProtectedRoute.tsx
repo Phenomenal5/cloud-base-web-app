@@ -4,14 +4,14 @@ import { Loader2 } from 'lucide-react'
 import { useAppSelector } from '@/store/hooks'
 import { useLogoutMutation } from '@/store/api'
 
-// Gates the admin area on being signed in and holding the ADMIN role. This is
-// UX, not access control: every /api/admin route checks the role server-side.
+// gates the admin area on being signed in and actually being an ADMIN. this is
+// UX, not security. every /api/admin route checks the role server side
 export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
   const { user, status } = useAppSelector((state) => state.auth)
   const [logout] = useLogoutMutation()
 
-  // Wait for /auth/me before deciding, or a refresh would bounce a signed-in
-  // admin to the login page.
+  // wait for /auth/me before deciding anything, or a refresh throws a signed-in
+  // admin back to the login page
   if (status === 'loading') {
     return (
       <div className='flex h-dvh items-center justify-center'>
@@ -22,8 +22,8 @@ export const ProtectedRoute = ({ children }: { children: ReactNode }) => {
 
   if (status === 'guest') return <Navigate to='/login' replace />
 
-  // Signed in but not an admin. Explain it and offer a way out, rather than
-  // redirecting them into a loop with the login page.
+  // signed in but not an admin. say so and give them a way out, rather than
+  // bouncing them into a loop with the login page
   if (user && user.role !== 'ADMIN') {
     return (
       <div className='flex h-dvh flex-col items-center justify-center gap-3 text-center'>

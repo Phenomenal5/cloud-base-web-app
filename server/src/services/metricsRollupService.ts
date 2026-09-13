@@ -2,11 +2,10 @@ import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 
-// The admin dashboard's all-time totals come from two tables that grow forever
-// (query_logs, token_usage). To keep those reads cheap, the worker runs this
-// nightly: fold every completed UTC day into one daily_metrics row, then delete
-// the raw rows past the retention window. The dashboard reads
-// sum(daily_metrics) plus today's live rows.
+// query_logs and token_usage grow forever, and the admin dashboard wants
+// all-time totals off them. so the worker runs this nightly: squash each
+// finished day into one daily_metrics row, then delete the raw rows past the
+// retention window. dashboard then reads sum(daily_metrics) + today
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -48,15 +47,16 @@ function blankDay(): DayAggregate {
   };
 }
 
-// Re-rolls the whole retained window each night instead of tracking a cursor.
-// That's simpler and idempotent, and it's cheap because retention bounds the
-// window. Today is left alone; only completed days are rolled.
+// roll every finished day into daily_metrics
 export async function rollUpDailyMetrics(): Promise<number> {
+  // redo the whole retained window every night rather than keeping a cursor.
+  // simpler, safe to run twice, and retention keeps it cheap. today is skipped,
+  // it isn't finished yet
   const todayStart = utcDayStart(new Date());
   const windowStart = new Date(todayStart.getTime() - env.metricsRetentionDays * MS_PER_DAY);
 
-  // Grouping by a truncated date needs raw SQL, since Prisma's groupBy can't
-  // date_trunc. The ::int casts stop Postgres returning bigints.
+  // raw SQL because prisma's groupBy can't date_trunc. the ::int casts stop
+  // postgres handing back bigints that don't survive JSON
   const queryRows = await prisma.$queryRaw<QueryDayRow[]>`
     SELECT to_char(date_trunc('day', "createdAt"), 'YYYY-MM-DD') AS day,
            kind::text                                            AS kind,
@@ -77,6 +77,7 @@ export async function rollUpDailyMetrics(): Promise<number> {
     GROUP BY 1, 2
   `;
 
+  // merge both result sets into one entry per day
   const days = new Map<string, DayAggregate>();
 
   for (const row of queryRows) {
@@ -96,6 +97,7 @@ export async function rollUpDailyMetrics(): Promise<number> {
     days.set(row.day, aggregate);
   }
 
+  // upsert so re-running the same night just overwrites with the same numbers
   for (const [day, aggregate] of days) {
     await prisma.dailyMetric.upsert({
       where: { day },
@@ -107,7 +109,8 @@ export async function rollUpDailyMetrics(): Promise<number> {
   return days.size;
 }
 
-// Everything deleted here is either already captured in daily_metrics or spent.
+// bin the raw rows. safe because everything here is either already folded into
+// daily_metrics or a token that's been spent
 export async function pruneOldData(): Promise<void> {
   const now = new Date();
   const retentionCutoff = new Date(now.getTime() - env.metricsRetentionDays * MS_PER_DAY);
@@ -124,8 +127,8 @@ export async function pruneOldData(): Promise<void> {
     prisma.passwordResetToken.deleteMany({
       where: { OR: [{ consumedAt: { not: null } }, { expiresAt: { lt: now } }] },
     }),
-    // Expired only, not revoked. Keeping revoked rows is what lets us spot a
-    // replayed token later.
+    // expired only, not merely revoked. keeping the revoked rows around is what
+    // would let us spot a replayed token later
     prisma.refreshToken.deleteMany({ where: { expiresAt: { lt: now } } }),
   ]);
 

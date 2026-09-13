@@ -11,8 +11,8 @@ import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { NotificationBell } from "@/components/layout/NotificationBell";
 
 interface AppHeaderProps {
-  // Only the chat page passes this, to open its conversation drawer on mobile.
-  // Everywhere else leaves it undefined and no menu button renders.
+  // only the chat page passes this, to open its drawer on mobile. everywhere else
+  // leaves it undefined and no menu button renders at all
   onMenuClick?: () => void;
 }
 
@@ -24,8 +24,8 @@ export const AppHeader = ({ onMenuClick }: AppHeaderProps = {}) => {
 
   const handleSignOut = async () => {
     setIsMenuOpen(false);
-    // Leave regardless: if the revoke call failed, the cookies are still cleared
-    // server-side on the next request, and stranding them here helps nobody.
+    // go either way. if the revoke call failed the cookies still get cleared server
+    // side on the next request, and leaving them stuck on this page helps nobody
     await logout()
       .unwrap()
       .catch(() => undefined);
@@ -57,7 +57,7 @@ export const AppHeader = ({ onMenuClick }: AppHeaderProps = {}) => {
         <ThemeToggle />
         {status === "authenticated" && user ? (
           <>
-            {/* Inside the auth branch, so the feed is never fetched for a guest. */}
+            {/* inside the auth branch, so a guest never fetches the feed at all */}
             <NotificationBell />
             <div className="relative">
               <button
@@ -85,7 +85,7 @@ export const AppHeader = ({ onMenuClick }: AppHeaderProps = {}) => {
                     >
                       Profile
                     </Link>
-                    {/* Cosmetic only. The route and the API both check the role. */}
+                    {/* cosmetic. the route and the API both check the role for real */}
                     {(user.role === "ANALYST" || user.role === "ADMIN") && (
                       <Link
                         href="/reports"

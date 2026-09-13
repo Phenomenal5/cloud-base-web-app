@@ -5,20 +5,23 @@ import AppError from "../utils/AppError.js";
 import { logger } from "../config/logger.js";
 import { env } from "../config/env.js";
 
-// Mounted after all routes.
+// nothing matched, so turn it into a 404 the error handler below can format
 export function notFound(req: Request, _res: Response, next: NextFunction) {
   next(new AppError(`Route not found: ${req.method} ${req.originalUrl}`, 404));
 }
 
-// P2002 unique violation, P2025 record not found, P2003 foreign key failure.
+// turn prisma's error codes into something a client can read
 function fromPrismaKnownError(error: Prisma.PrismaClientKnownRequestError): AppError {
   switch (error.code) {
+    // unique constraint
     case "P2002": {
       const target = (error.meta?.target as string[] | undefined)?.join(", ") ?? "field";
       return new AppError(`A record with that ${target} already exists.`, 409);
     }
+    // row not found
     case "P2025":
       return new AppError("Record not found.", 404);
+    // foreign key
     case "P2003":
       return new AppError("Related record does not exist.", 400);
     default:
@@ -26,7 +29,7 @@ function fromPrismaKnownError(error: Prisma.PrismaClientKnownRequestError): AppE
   }
 }
 
-// The jsonwebtoken library throws plain Errors identified by name.
+// jsonwebtoken throws plain Errors, so name is the only thing to match on
 function isJwtError(error: unknown): boolean {
   return (
     error instanceof Error &&
@@ -34,15 +37,16 @@ function isJwtError(error: unknown): boolean {
   );
 }
 
-// ─── Global error handler (mounted last) ──────────────
-// Express identifies this as an error handler by its four arguments, so the
-// unused `next` has to stay.
+// ========== global error handler, mounted last ==================
+// express spots an error handler by counting four arguments, so `_next` has to
+// stay even though nothing uses it
 export function globalErrorHandler(
   err: unknown,
   _req: Request,
   res: Response,
   _next: NextFunction,
 ) {
+  // work out what we're actually looking at, most specific first
   let error: AppError;
 
   if (err instanceof AppError) {
@@ -58,15 +62,18 @@ export function globalErrorHandler(
   } else if (err instanceof Error && err.name === "MulterError") {
     error = new AppError(err.message, 400);
   } else {
-    // Unknown or non-operational: don't leak internals to the client.
+    // something we didn't plan for. generic message, never the real one, that's
+    // how stack traces and table names end up on a user's screen
     error = new AppError("Something went wrong.", 500);
   }
 
-  // Log the original error for anything server-side or unexpected.
+  // log the original for anything unexpected or server-side. operational 4xx
+  // errors are normal and would just be noise
   if (!error.isOperational || error.statusCode >= 500) {
     logger.error(err instanceof Error ? (err.stack ?? err.message) : String(err));
   }
 
+  // stack only outside production
   res.status(error.statusCode).json({
     status: error.status,
     message: error.message,

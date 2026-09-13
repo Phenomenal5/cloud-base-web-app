@@ -14,23 +14,25 @@ import apiRoutes from "./routes/index.js";
 
 const app = express();
 
-// Behind Render's proxy in prod, so req.ip and secure cookies resolve correctly.
+// we sit behind render's proxy in prod. without this req.ip is the proxy's
+// address, which would break the per-IP guest quota, and secure cookies too
 if (env.isProduction) app.set("trust proxy", 1);
 
-// ─── Security & parsing ───────────────────────────────
+// ========== security and parsing ==================
 
 app.use(helmet());
 
 app.use(
   cors({
     origin(origin, callback) {
-      // No-Origin requests (curl, health checks, server-to-server) aren't a
-      // browser CSRF vector, so they're allowed through.
+      // no Origin at all means curl, a health check or another server. those
+      // aren't a browser CSRF risk, so let them through
       if (!origin || env.corsOrigins.includes(origin)) return callback(null, true);
-      // Answer without CORS headers rather than throwing, so bots hitting the API
-      // directly don't fill the logs with 500s. Log the origin though: a blocked
-      // request fails silently in the browser, so without this line a wrong
-      // CORS_ORIGINS on a new deployment is very hard to spot.
+
+      // answer without the CORS headers instead of throwing, or every bot that
+      // pokes the API fills the logs with 500s. but do log it: a blocked request
+      // fails silently in the browser, so a wrong CORS_ORIGINS on a new deploy
+      // is almost impossible to spot without this line
       logger.warn(`CORS blocked origin "${origin}". Allowed: ${env.corsOrigins.join(", ")}`);
       return callback(null, false);
     },
@@ -41,7 +43,8 @@ app.use(
 app.use(
   compression({
     filter: (req, res) => {
-      // Compressing SSE buffers the response and breaks token streaming.
+      // never compress SSE. it buffers the response and the tokens stop
+      // arriving live, which kills the whole point of streaming
       const contentType = res.getHeader("Content-Type");
       if (typeof contentType === "string" && contentType.includes("text/event-stream"))
         return false;
@@ -54,7 +57,7 @@ app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true, limit: "1mb" }));
 app.use(cookieParser());
 
-// Google OAuth only. No passport sessions: the callback issues our own JWT.
+// google oauth only, and no passport sessions. the callback mints our own JWT
 configurePassport();
 app.use(passport.initialize());
 
@@ -62,9 +65,9 @@ app.use(morgan(env.isProduction ? "combined" : "dev", { stream: morganStream }))
 
 app.use(generalLimiter);
 
-// ─── Static uploads (avatars) ─────────────────────────
-// The frontend is on a different origin, so relax helmet's same-origin CORP for
-// these files. maxAge is safe because avatar filenames are random per upload.
+// ========== serve the avatars ============
+// the frontend is on another origin, so helmet's same-origin CORP has to be
+// loosened for these. caching hard is fine, every upload gets a random filename
 app.use(
   "/uploads",
   express.static(resolve("uploads"), {
@@ -75,7 +78,8 @@ app.use(
 
 app.use("/api", apiRoutes);
 
-// The error handler must stay last.
+// these two stay at the bottom. express only reaches an error handler that's
+// mounted after the routes it's meant to catch
 app.use(notFound);
 app.use(globalErrorHandler);
 

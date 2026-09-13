@@ -23,7 +23,7 @@ const VerifyEmailForm = () => {
     initialValues: { email: emailFromQuery, code: "" },
     onSubmit: async (values) => {
       try {
-        // Verifying the code is also what signs them in.
+        // entering the code is also what signs them in
         await verifyEmail(values).unwrap();
         toast.success("Email verified");
         router.push("/chat");
@@ -59,7 +59,7 @@ const VerifyEmailForm = () => {
       </header>
 
       <form onSubmit={form.handleSubmit} className="flex flex-col gap-4" noValidate>
-        {/* Only asked for when we didn't arrive here from registration. */}
+        {/* only asked for if we didn't come straight from the register page */}
         {!emailFromQuery && (
           <Input
             label="Email"
@@ -102,8 +102,8 @@ const VerifyEmailForm = () => {
   );
 };
 
-// useSearchParams needs a Suspense boundary, otherwise the whole route opts out
-// of static rendering.
+// useSearchParams needs a Suspense boundary round it, or the whole route drops
+// out of static rendering
 const VerifyEmailPage = () => (
   <Suspense fallback={<div className="py-6 text-center text-sm text-muted">Loading…</div>}>
     <VerifyEmailForm />

@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun } from "lucide-react";
 
-// The initial class is set by the inline script in the root layout, before paint,
-// so there's no flash. This just reads it back and flips it on click.
+// the inline script in the root layout sets the class before anything paints, so
+// there's no flash. this just reads it back and flips it when clicked
 export const ThemeToggle = () => {
   const [isDark, setIsDark] = useState(false);
 
-  // Read after mount, not in render. The server can't see the class the pre-paint
-  // script sets, so reading it during render mismatches.
+  // read it after mount, not during render. the server can't see what that
+  // pre-paint script did, so reading it in render is a hydration mismatch
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsDark(document.documentElement.classList.contains("dark"));
@@ -22,7 +22,7 @@ export const ThemeToggle = () => {
     try {
       localStorage.setItem("theme", nextIsDark ? "dark" : "light");
     } catch {
-      // Private mode and blocked storage: the toggle still works for this page.
+      // private mode or blocked storage. the toggle still works for this page
     }
   };
 

@@ -6,11 +6,9 @@ import { getOwnedConversation } from "../services/conversationService.js";
 const DEFAULT_LIMIT = 30;
 const MAX_LIMIT = 100;
 
-// ─── GET /api/conversations ───────────────────────────
-// Pinned first, then most recently active. ?search= matches titles and message
-// content; archived threads are hidden unless ?archived=true.
+// ========== list conversations controller ==================
 export const listConversations = catchAsync(async (req, res) => {
-  // Clamped so a user with thousands of threads can't pull them all at once.
+  // clamp the paging so nobody with thousands of threads can pull them all at once
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
   const skip = (page - 1) * limit;
@@ -18,6 +16,8 @@ export const listConversations = catchAsync(async (req, res) => {
   const includeArchived = req.query.archived === "true";
   const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
 
+  // build the filter: always their own threads, archived hidden unless asked for,
+  // and ?search= looks in the title and inside the messages
   const where: Prisma.ConversationWhereInput = {
     userId: req.user!.id,
     ...(includeArchived ? {} : { archived: false }),
@@ -31,9 +31,11 @@ export const listConversations = catchAsync(async (req, res) => {
       : {}),
   };
 
+  // rows and total count together so the page count matches what we just returned
   const [conversations, total] = await prisma.$transaction([
     prisma.conversation.findMany({
       where,
+      // pinned ones float to the top, then whatever was used most recently
       orderBy: [{ pinned: "desc" }, { updatedAt: "desc" }],
       skip,
       take: limit,
@@ -55,10 +57,12 @@ export const listConversations = catchAsync(async (req, res) => {
   });
 });
 
-// ─── GET /api/conversations/:id ───────────────────────
+// ========= open one conversation controller ===============
 export const getConversation = catchAsync(async (req, res) => {
+  // throws 404 if it isn't theirs, so no extra ownership check below
   const conversation = await getOwnedConversation(req.user!.id, req.params.id as string);
 
+  // oldest first, that's the order the chat renders in
   const messages = await prisma.message.findMany({
     where: { conversationId: conversation.id },
     orderBy: { createdAt: "asc" },
@@ -68,10 +72,11 @@ export const getConversation = catchAsync(async (req, res) => {
   res.status(200).json({ data: { conversation, messages } });
 });
 
-// ─── PATCH /api/conversations/:id ─────────────────────
-// Rename, pin, or archive. Only the fields present in the body change.
+// ========== rename pin or archive controller ============
 export const updateConversation = catchAsync(async (req, res) => {
   const id = req.params.id as string;
+
+  // check it's theirs before touching anything
   await getOwnedConversation(req.user!.id, id);
 
   const { title, pinned, archived } = req.body as {
@@ -80,6 +85,7 @@ export const updateConversation = catchAsync(async (req, res) => {
     archived?: boolean;
   };
 
+  // undefined fields are skipped by prisma, so only what they sent changes
   const conversation = await prisma.conversation.update({
     where: { id },
     data: { title, pinned, archived },
@@ -88,11 +94,12 @@ export const updateConversation = catchAsync(async (req, res) => {
   res.status(200).json({ message: "Conversation updated", data: { conversation } });
 });
 
-// ─── DELETE /api/conversations/:id ────────────────────
-// Cascades to the messages.
+// ========= delete conversation controller ==============
 export const deleteConversation = catchAsync(async (req, res) => {
   const id = req.params.id as string;
   await getOwnedConversation(req.user!.id, id);
+
+  // the messages go with it, the schema cascades on delete
   await prisma.conversation.delete({ where: { id } });
   res.status(200).json({ message: "Conversation deleted" });
 });

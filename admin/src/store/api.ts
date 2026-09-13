@@ -11,13 +11,13 @@ import type {
 import { axiosBaseQuery, type AxiosQueryArgs, type AxiosQueryError } from './axiosBaseQuery'
 import { clearUser } from './authSlice'
 
-// On a 401 for a protected route we rotate the session through /auth/refresh
-// once and retry; if that fails, the user is cleared.
+// on a 401 we rotate the session through /auth/refresh once and retry the
+// original request. if that fails too, clear the user
 
 const rawBaseQuery = axiosBaseQuery()
 
-// Concurrent 401s share one refresh. The token rotates, so a second parallel
-// refresh would invalidate the first one's result.
+// all the 401s share one refresh promise. the refresh token rotates, so two of
+// them running at once means the second one invalidates the first
 let refreshPromise: ReturnType<typeof rawBaseQuery> | null = null
 
 const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQueryError> = async (
@@ -28,7 +28,7 @@ const baseQueryWithReauth: BaseQueryFn<AxiosQueryArgs | string, unknown, AxiosQu
   let result = await rawBaseQuery(queryArgs, baseQueryApi, extraOptions)
 
   const requestUrl = typeof queryArgs === 'string' ? queryArgs : queryArgs.url
-  // A failed login or refresh must not trigger another refresh.
+  // a failed login or a failed refresh must not kick off another refresh
   const isAuthRoute = requestUrl.startsWith('/auth/')
 
   if (result.error?.status === 401 && !isAuthRoute) {
@@ -57,19 +57,19 @@ export const api = createApi({
   baseQuery: baseQueryWithReauth,
   tagTypes: ['User', 'IngestionJob'],
   endpoints: (builder) => ({
-    // ── Dashboard ──
+    // ===== dashboard =====
     metrics: builder.query<Metrics, void>({
       query: () => '/admin/metrics',
       transformResponse: (response: ApiEnvelope<Metrics>) => response.data,
-      // The dashboard counts users and jobs, so it goes stale when either list
-      // changes.
+      // the dashboard counts users and jobs, so it goes stale the moment either
+      // list changes
       providesTags: [
         { type: 'User', id: 'LIST' },
         { type: 'IngestionJob', id: 'LIST' },
       ],
     }),
 
-    // ── Session ──
+    // ===== session =====
     me: builder.query<User, void>({
       query: () => '/auth/me',
       transformResponse: (response: ApiEnvelope<{ user: User }>) => response.data.user,
@@ -85,7 +85,7 @@ export const api = createApi({
       invalidatesTags: [{ type: 'User', id: 'ME' }],
     }),
 
-    // ── Users ──
+    // ===== users =====
     listUsers: builder.query<
       UserPage,
       { search?: string; role?: Role; status?: UserStatus; page?: number } | void
@@ -119,7 +119,7 @@ export const api = createApi({
       invalidatesTags: [{ type: 'User', id: 'LIST' }],
     }),
 
-    // ── Ingestion ──
+    // ===== ingestion =====
     listIngestions: builder.query<IngestionJob[], void>({
       query: () => '/admin/ingestions',
       transformResponse: (response: ApiEnvelope<{ jobs: IngestionJob[] }>) => response.data.jobs,
@@ -131,7 +131,7 @@ export const api = createApi({
       invalidatesTags: [{ type: 'IngestionJob', id: 'LIST' }],
     }),
 
-    // ── Broadcast ──
+    // ===== broadcast =====
     broadcast: builder.mutation<{ recipients: number }, { title: string; body: string }>({
       query: (body) => ({ url: '/admin/notifications', method: 'POST', body }),
       transformResponse: (response: ApiEnvelope<{ recipients: number }>) => response.data,

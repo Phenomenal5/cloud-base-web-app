@@ -1,14 +1,15 @@
 import rateLimit from "express-rate-limit";
 
-// In-memory store, since the stack has no Redis. Counts are per-instance, so
-// swap in a Prisma-backed store if the API ever runs more than one.
+// counts live in memory, there's no redis in this stack. that means they're
+// per-instance, so if the API ever runs more than one, swap in a prisma-backed
+// store or the real limit becomes limit x instances
 
 const shared = {
   standardHeaders: "draft-7",
   legacyHeaders: false,
 } as const;
 
-// Global baseline, applied to every request.
+// the baseline, every request goes through this
 export const generalLimiter = rateLimit({
   ...shared,
   windowMs: 15 * 60 * 1000,
@@ -16,8 +17,8 @@ export const generalLimiter = rateLimit({
   message: { status: "fail", message: "Too many requests, please try again later." },
 });
 
-// Tighter window for login, registration, verification and password reset, to
-// slow credential stuffing and brute-forcing of the 6-digit codes.
+// much tighter, for login, register, verify and reset. slows down credential
+// stuffing and stops anyone brute-forcing a 6-digit code
 export const authLimiter = rateLimit({
   ...shared,
   windowMs: 15 * 60 * 1000,

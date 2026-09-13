@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction, RequestHandler } from "express";
 
-// Wrap every async controller so a rejected promise reaches the global error
-// handler. That's what keeps try/catch out of the controllers.
+// wrap every async handler in this. a rejected promise then lands on the global
+// error handler instead of vanishing, which is what keeps try/catch out of the
+// controllers entirely
 export const catchAsync =
   (fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>): RequestHandler =>
   (req, res, next) => {

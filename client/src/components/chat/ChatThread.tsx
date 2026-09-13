@@ -42,13 +42,13 @@ export const ChatThread = ({ messages, userName, onExample }: ChatThreadProps) =
   const [greeting, setGreeting] = useState("Hello");
   const [openReportId, setOpenReportId] = useState<string | null>(null);
 
-  // Deferred to a mount effect: the greeting reads the client's local clock,
-  // which the server can't know, so computing it in render mismatches.
+  // deferred to a mount effect. the greeting reads the browser's local clock,
+  // which the server has no way of knowing, so doing it in render mismatches
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setGreeting(timeOfDayGreeting()), []);
 
-  // Instant, not smooth. Fires on every streamed token, and a smooth scroll that
-  // restarts a few times a second never settles.
+  // instant, not smooth. this fires on every streamed token, and a smooth scroll
+  // that restarts a few times a second never actually settles anywhere
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "auto" });
   }, [messages]);
@@ -83,7 +83,7 @@ export const ChatThread = ({ messages, userName, onExample }: ChatThreadProps) =
 
   return (
     <>
-      {/* min-h-0 is required: without it this flex child won't shrink below its
+      {/* min-h-0 is load-bearing. without it this flex child won't shrink below its
           content, so it grows to the full message height and clips instead of
           scrolling. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -110,7 +110,7 @@ export const ChatThread = ({ messages, userName, onExample }: ChatThreadProps) =
                     <p className="text-sm text-muted">Searching the reports…</p>
                   ) : null}
 
-                  {/* Running out of questions isn't a failure, so it gets its own
+                  {/* running out of questions isn't a failure, so it gets its own
                       panel with the reset time rather than a red error line. */}
                   {message.error &&
                     (message.error.code === "QUOTA_EXCEEDED" ? (

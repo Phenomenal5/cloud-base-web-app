@@ -12,12 +12,12 @@ import reportRoutes from "./reportRoutes.js";
 import adminRoutes from "./adminRoutes.js";
 import notificationRoutes from "./notificationRoutes.js";
 
-// The single place that maps URL prefixes to feature routers.
+// the one place that maps a URL prefix to a router
 
 const router = Router();
 
-// Interactive docs at /api/docs, raw spec at /api/docs.json. Non-production only,
-// so we don't publish the whole API surface to the internet.
+// docs at /api/docs, raw spec at /api/docs.json. off in production, no reason
+// to publish the whole API surface to the internet
 if (!env.isProduction) {
   router.use(
     "/docs",
@@ -38,8 +38,8 @@ if (!env.isProduction) {
  *       200:
  *         description: Service healthy and database reachable
  */
-// SELECT 1 proves the pool can actually reach Postgres, so this doubles as the
-// host's readiness probe rather than just saying the process is alive.
+// SELECT 1 proves the pool can actually reach postgres, so this works as a real
+// readiness probe instead of just saying the process is up
 router.get(
   "/health",
   catchAsync(async (_req, res) => {

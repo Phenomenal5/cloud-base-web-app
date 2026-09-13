@@ -41,7 +41,7 @@ export const PasswordInput = ({
         />
         <button
           type='button'
-          // Skipped in the tab order, so tabbing goes password to submit.
+          // out of the tab order, so tabbing goes straight from password to submit
           tabIndex={-1}
           onClick={() => setIsVisible((visible) => !visible)}
           aria-label={isVisible ? 'Hide password' : 'Show password'}

@@ -1,8 +1,8 @@
 import winston from "winston";
 import { env } from "./env.js";
 
-// Colourized lines in dev, JSON in prod for log aggregation. Morgan writes
-// through this too, so HTTP and application logs share one stream.
+// coloured lines in dev, JSON in prod so a log aggregator can parse it. morgan
+// writes through here too, so HTTP and app logs come out one stream
 
 const { combine, timestamp, json, colorize, printf, errors } = winston.format;
 
@@ -16,7 +16,7 @@ const devFormat = combine(
 const prodFormat = combine(timestamp(), errors({ stack: true }), json());
 
 export const logger = winston.createLogger({
-  // "http" in prod keeps request logs; "debug" in dev keeps everything.
+  // http in prod so request logs survive, debug in dev so everything does
   level: env.isProduction ? "http" : "debug",
   format: env.isProduction ? prodFormat : devFormat,
   transports: [new winston.transports.Console()],

@@ -3,8 +3,8 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import { recordTokenUsage } from "./tokenUsageService.js";
 
-// Plain-language summary of a narrative. Callers cache the result on the report
-// row, so the same text is never summarized twice.
+// turns a report narrative into something a trainee can read. the caller caches
+// the result on the row, so we never pay to summarise the same report twice
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
@@ -36,7 +36,8 @@ export async function summarizeReport(narrative: string): Promise<string> {
   }
 }
 
-// The first couple of sentences, which is enough to be useful without a model.
+// no model, so just take the first couple of sentences. not a summary, but it's
+// something to show instead of an empty box
 function fallbackSummary(narrative: string): string {
   const sentences = narrative
     .replace(/\s+/g, " ")

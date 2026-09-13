@@ -5,8 +5,8 @@ import { logger } from "../config/logger.js";
 import { ingestReports } from "../services/ingestionService.js";
 import { parseAsrsCsv } from "../utils/asrsCsv.js";
 
-// Offline seed path. Admin uploads go through the worker instead, but both end
-// up in the same ingestReports().
+// the offline way in. admin uploads go through the worker instead, but both end
+// up calling the same ingestReports()
 //
 //   npm run seed                    uses the bundled sample CSV
 //   npm run seed path/to/asrs.csv   uses a real export

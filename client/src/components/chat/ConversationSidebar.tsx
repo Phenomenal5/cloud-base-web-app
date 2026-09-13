@@ -29,7 +29,7 @@ interface ConversationSidebarProps {
   activeId?: string;
   onSelect: (conversationId: string) => void;
   onNewChat: () => void;
-  // Mobile drawer state. The always-on desktop column ignores both.
+  // mobile drawer state only, the desktop column is always open and ignores it
   isOpen?: boolean;
   onClose?: () => void;
 }
@@ -53,7 +53,7 @@ export const ConversationSidebar = ({
   const [updateConversation] = useUpdateConversationMutation();
   const [deleteConversation] = useDeleteConversationMutation();
 
-  // Escape closes the drawer, for keyboard parity with the close button.
+  // escape closes the drawer, same as the close button
   useEffect(() => {
     if (!isOpen || !onClose) return;
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -63,8 +63,8 @@ export const ConversationSidebar = ({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
-  // These failures are cosmetic and RTK Query rolls the cache back on its own,
-  // so there's nothing useful to say beyond closing the menu.
+  // cosmetic failures, and RTK Query rolls the cache back by itself, so there's
+  // nothing worth saying here beyond shutting the menu
   const togglePin = async (conversation: ConversationSummary) => {
     setOpenMenuId(null);
     await updateConversation({ id: conversation.id, pinned: !conversation.pinned })
@@ -84,11 +84,11 @@ export const ConversationSidebar = ({
     await deleteConversation(conversationId)
       .unwrap()
       .catch(() => undefined);
-    // Deleting the thread you're reading leaves nothing to show.
+    // if they deleted the thread they're reading, there's nothing left to show
     if (conversationId === activeId) onNewChat();
   };
 
-  // Rendered in both the desktop column and the mobile drawer.
+  // this renders in both the desktop column and the mobile drawer
   const panelBody = (
     <>
       <div className="flex flex-col gap-2 p-3">
@@ -168,7 +168,7 @@ export const ConversationSidebar = ({
 
                 {openMenuId === conversation.id && (
                   <>
-                    {/* Full-screen catcher so clicking anywhere else closes the menu. */}
+                    {/* full-screen catcher, so clicking anywhere else shuts the menu */}
                     <div className="fixed inset-0 z-10" onClick={() => setOpenMenuId(null)} />
                     <div className="absolute right-1 top-9 z-20 w-40 rounded-lg border border-border bg-surface p-1 shadow-lg">
                       <button
@@ -215,12 +215,12 @@ export const ConversationSidebar = ({
 
   return (
     <>
-      {/* Desktop: a static column from the sm breakpoint up. */}
+      {/* desktop, a fixed column from sm up */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-border sm:flex">
         {panelBody}
       </aside>
 
-      {/* Mobile: scrim behind the drawer. */}
+      {/* mobile, the scrim behind the drawer */}
       <div
         aria-hidden
         onClick={onClose}
@@ -230,7 +230,7 @@ export const ConversationSidebar = ({
         )}
       />
 
-      {/* Mobile: the drawer itself. */}
+      {/* mobile, the drawer itself */}
       <aside
         className={cn(
           "fixed inset-y-0 left-0 z-40 flex w-72 max-w-[85vw] flex-col border-r border-border bg-background transition-transform duration-200 ease-out sm:hidden",

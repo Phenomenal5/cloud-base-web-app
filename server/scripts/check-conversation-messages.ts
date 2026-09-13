@@ -1,14 +1,14 @@
 /* eslint-disable no-console -- diagnostic CLI script, console is its output. */
 import { prisma } from "../src/config/prisma.js";
 
-// Runs the exact query GET /api/conversations/:id uses against the real database
-// and prints everything it returns, to confirm the API isn't silently dropping
-// messages.
+// runs the exact query GET /api/conversations/:id uses, straight against the
+// real database, and prints everything back. written while chasing whether the
+// API was quietly dropping messages
 //
 //   npx tsx scripts/check-conversation-messages.ts
 
 async function main(): Promise<void> {
-  // The busiest conversations, so the check is actually meaningful.
+  // busiest threads first, or the check tells you nothing
   const conversations = await prisma.conversation.findMany({
     select: {
       id: true,
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
 
   const target = conversations[0]!;
 
-  // Same query as conversationController.getConversation.
+  // same query conversationController.getConversation runs
   const messages = await prisma.message.findMany({
     where: { conversationId: target.id },
     orderBy: { createdAt: "asc" },

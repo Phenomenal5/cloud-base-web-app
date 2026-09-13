@@ -5,9 +5,7 @@ import { logger } from "../config/logger.js";
 import { recordTokenUsage } from "./tokenUsageService.js";
 import type { Category, Severity } from "../generated/prisma/enums.js";
 
-// Assigns a category and a LOW/MEDIUM/HIGH severity to a report. The model
-// returns JSON, which we validate with Yup; anything invalid falls back to a
-// deterministic heuristic so ingestion never dies on a bad response.
+// puts a category and a severity on a report during ingestion
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
@@ -57,10 +55,14 @@ export async function classifyReport(narrative: string): Promise<Classification>
     });
 
     recordTokenUsage("CLASSIFICATION", env.chatModel, response.usage);
+
+    // validate what came back rather than trusting it. a bad response then falls
+    // into the catch instead of writing junk enum values into the db
     const raw = response.choices[0]?.message?.content ?? "{}";
     const parsed: unknown = JSON.parse(raw);
     return (await classificationSchema.validate(parsed, { stripUnknown: true })) as Classification;
   } catch (error) {
+    // never let a classification failure kill an ingestion run
     logger.warn(
       `Classification fell back to heuristic: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -68,11 +70,12 @@ export async function classifyReport(narrative: string): Promise<Classification>
   }
 }
 
-// Keyword fallback, used when there's no API key or the model's output failed
-// validation. Order matters: the more specific patterns are checked first.
+// keyword fallback for when there's no API key or the model gave us rubbish
 function heuristicClassify(narrative: string): Classification {
   const text = narrative.toLowerCase();
 
+  // order matters here, the specific patterns have to be checked before the
+  // broad ones or everything ends up as AIRCRAFT_SYSTEMS
   let category: Category = "OTHER";
   if (/\bbird|wildlife|deer\b/.test(text)) category = "WILDLIFE";
   else if (/runway|incursion|taxi|hold.?short|apron/.test(text)) category = "RUNWAY_SAFETY";

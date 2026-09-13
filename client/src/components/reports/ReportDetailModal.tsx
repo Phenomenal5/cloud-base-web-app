@@ -14,7 +14,7 @@ const SEVERITY_STYLES: Record<string, string> = {
 
 const SECTION_HEADING_CLASS = "mb-1 text-xs font-semibold uppercase tracking-wide text-muted";
 
-// HUMAN_FACTORS -> "Human factors"
+// HUMAN_FACTORS becomes "Human factors"
 const formatCategory = (category: string): string => {
   const words = category.replace(/_/g, " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
@@ -28,8 +28,8 @@ interface ReportDetailModalProps {
 export const ReportDetailModal = ({ reportId, onClose }: ReportDetailModalProps) => {
   const { data: report, isLoading, error } = useGetReportQuery(reportId);
 
-  // Guests can open a source chip from an answer, but the report endpoint needs a
-  // session, so that case gets a sign-in prompt instead of a generic failure.
+  // a guest can click a source chip under an answer, but the report endpoint wants
+  // a session, so show them a sign-in prompt rather than a generic error
   const isUnauthorized =
     !!error &&
     typeof error === "object" &&

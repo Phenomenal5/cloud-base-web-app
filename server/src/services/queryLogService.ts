@@ -2,13 +2,14 @@ import { prisma } from "../config/prisma.js";
 import { env } from "../config/env.js";
 import type { Role, QueryKind } from "../generated/prisma/enums.js";
 
-// query_logs is both the audit trail and the quota counter: a day's usage is
-// just the count of a user's or an IP's rows since midnight UTC. No Redis in
-// this stack, so Postgres is the source of truth.
+// query_logs does double duty: audit trail and quota counter. a day's usage is
+// just a count of rows since midnight UTC. no redis in this stack, so postgres
+// is the source of truth
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-// null means unlimited. No role at all means a guest.
+// how many questions a day this role gets. null means unlimited, and no role at
+// all means they're a guest
 export function dailyLimitFor(role: Role | undefined): number | null {
   if (!role) return env.quotaGuest;
   switch (role) {
@@ -26,12 +27,13 @@ function startOfUtcDay(): Date {
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 }
 
-// Next midnight UTC. Sent to the client so someone who's out of questions is told
-// when they get them back, rather than just "limit reached".
+// next midnight UTC. goes to the client so someone who's run out gets told when
+// they get more, instead of just "limit reached"
 export function quotaResetsAt(): Date {
   return new Date(startOfUtcDay().getTime() + MS_PER_DAY);
 }
 
+// count what they've spent today. signed-in users count by id, guests by IP
 export function usedToday(identity: { userId?: string; ip?: string }): Promise<number> {
   return prisma.queryLog.count({
     where: {
@@ -54,8 +56,8 @@ export async function logQuery(entry: {
   await prisma.queryLog.create({
     data: {
       userId: entry.userId ?? null,
-      // The IP is only kept for guests, who have no user id to count against.
-      // Storing it for signed-in users would be personal data we don't need.
+      // only store the IP for guests, they've got no user id to count against.
+      // keeping it for signed-in users would be personal data we don't need
       ipAddress: entry.userId ? null : (entry.ip ?? null),
       kind: entry.kind,
       query: entry.query,

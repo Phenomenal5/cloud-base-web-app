@@ -1,15 +1,15 @@
 import type { Response } from "express";
 
-// Named events so the browser can addEventListener("token" | "sources" | "done" |
-// "error"). Compression is off for text/event-stream in app.ts, or the stream
-// buffers and tokens don't arrive live.
+// named events, so the browser can addEventListener("token" | "sources" |
+// "done" | "error"). compression is switched off for text/event-stream over in
+// app.ts, otherwise the stream buffers and the tokens stop arriving live
 
 export function initSse(res: Response): void {
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
     "Cache-Control": "no-cache, no-transform",
     Connection: "keep-alive",
-    // Stops nginx and Render from buffering the response.
+    // stops nginx and render buffering the response on us
     "X-Accel-Buffering": "no",
   });
 }

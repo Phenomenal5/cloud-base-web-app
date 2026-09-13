@@ -4,18 +4,19 @@ import { env } from "../config/env.js";
 import { logger } from "../config/logger.js";
 import { recordTokenUsage } from "./tokenUsageService.js";
 
-// Text to vectors for pgvector storage and similarity search. EMBEDDING_DIM must
-// match the schema's vector(1536) column; changing it needs a full re-ingest.
+// has to match the vector(1536) column in the schema. change this and you need
+// a migration plus a full re-ingest of every report
 export const EMBEDDING_DIM = 1536;
 
 const client = env.openaiApiKey ? new OpenAI({ apiKey: env.openaiApiKey }) : null;
 
 let warnedDevFallback = false;
 
-// One vector per input, order preserved.
+// turn text into vectors, one per input, same order back
 export async function embedTexts(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
+  // no key, so fall back to the fake embeddings below. warn once, not per call
   if (!client) {
     if (!warnedDevFallback) {
       logger.warn(
@@ -28,8 +29,9 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
 
   const response = await client.embeddings.create({ model: env.embeddingModel, input: texts });
   recordTokenUsage("EMBEDDING", env.embeddingModel, response.usage);
-  // The API returns each item with its own `index`; sort by it rather than
-  // assuming response order matches the input.
+
+  // sort by the `index` openai puts on each item. don't assume the response
+  // comes back in the order we sent it
   return response.data
     .slice()
     .sort((a, b) => a.index - b.index)
@@ -41,16 +43,16 @@ export async function embedQuery(query: string): Promise<number[]> {
   return vector ?? devEmbedding(query);
 }
 
-// pgvector literal format: "[0.1,0.2,...]". Needed because the embedding column
-// is Unsupported() and can only be written through raw SQL.
+// format a vector the way pgvector wants it: "[0.1,0.2,...]". we need this
+// because the embedding column is Unsupported() so it only goes in via raw SQL
 export function toVectorLiteral(vector: number[]): string {
   return `[${vector.join(",")}]`;
 }
 
-// Deterministic, unit-normalized vector derived from word hashes. Shared words
-// pull two texts closer, which is enough crude signal to exercise pgvector, but
-// it is not a substitute for real embeddings.
+// fake embeddings for local dev
 function devEmbedding(text: string): number[] {
+  // hash each word into slots, so two texts sharing words end up pointing in a
+  // similar direction. enough to exercise pgvector, nowhere near real semantics
   const vector = new Array<number>(EMBEDDING_DIM).fill(0);
   const tokens = text.toLowerCase().split(/\W+/).filter(Boolean);
 
@@ -62,6 +64,7 @@ function devEmbedding(text: string): number[] {
     }
   }
 
+  // normalise to unit length, cosine distance expects that
   const norm = Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0)) || 1;
   return vector.map((value) => value / norm);
 }

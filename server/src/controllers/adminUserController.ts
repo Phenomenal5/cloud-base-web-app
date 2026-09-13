@@ -4,7 +4,7 @@ import AppError from "../utils/AppError.js";
 import { Prisma } from "../generated/prisma/client.js";
 import { Role, UserStatus } from "../generated/prisma/enums.js";
 
-// What admins see. Deliberately never passwordHash.
+// what admins get back. passwordHash is deliberately not in here
 const USER_SELECT = {
   id: true,
   email: true,
@@ -18,18 +18,20 @@ const USER_SELECT = {
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
-// Revoking refresh tokens is how a role or status change actually lands. `protect`
-// is stateless, so the user keeps their current access token until it expires;
-// killing their refresh tokens means they can't extend past that. This matters
-// most for demotion and blocking.
-function revokeSessions(userId: string) {
+// =========== Helpers ==============
+
+// kill every session a user has
+const revokeSessions = (userId: string) => {
+  // this is what makes a role or status change actually bite. protect never hits
+  // the db, so they keep their current access token until it expires. dropping
+  // the refresh tokens stops them extending past that
   return prisma.refreshToken.updateMany({
     where: { userId, revokedAt: null },
     data: { revokedAt: new Date() },
   });
-}
+};
 
-// ─── GET /api/admin/users ─────────────────────────────
+// ========== list users controller (admin) ==================
 export const listUsers = catchAsync(async (req, res) => {
   const page = Math.max(1, Number(req.query.page) || 1);
   const limit = Math.min(MAX_LIMIT, Math.max(1, Number(req.query.limit) || DEFAULT_LIMIT));
@@ -39,8 +41,8 @@ export const listUsers = catchAsync(async (req, res) => {
   const roleParam = req.query.role as string | undefined;
   const statusParam = req.query.status as string | undefined;
 
-  // Unrecognized filter values are ignored rather than rejected, so a stale
-  // bookmark still returns a list.
+  // search hits email and name, and a filter value we don't recognise is just
+  // ignored so an old bookmark still returns a list instead of a 422
   const where: Prisma.UserWhereInput = {
     ...(search
       ? {
@@ -70,34 +72,42 @@ export const listUsers = catchAsync(async (req, res) => {
   res.status(200).json({ data: { users, page, limit, total, pages: Math.ceil(total / limit) } });
 });
 
-// ─── PATCH /api/admin/users/:id/role ──────────────────
+// ========= change user role controller (admin) ===============
 export const updateUserRole = catchAsync(async (req, res) => {
   const id = req.params.id as string;
   const { role } = req.body as { role: Role };
 
-  // Guardrail against an admin demoting themselves and locking everyone out.
+  // stop an admin demoting themselves. do that as the only admin and nobody can
+  // get back in
   if (id === req.user!.id) throw new AppError("You can't change your own role.", 400);
 
+  // read the old role first so we know whether anything actually changed
   const target = await prisma.user.findUnique({ where: { id }, select: { role: true } });
   if (!target) throw new AppError("User not found.", 404);
 
   const user = await prisma.user.update({ where: { id }, data: { role }, select: USER_SELECT });
+
+  // only sign them out if the role really moved, otherwise a no-op save would
+  // boot someone for nothing
   if (target.role !== role) await revokeSessions(id);
 
   res.status(200).json({ message: "Role updated", data: { user } });
 });
 
-// ─── PATCH /api/admin/users/:id/status ────────────────
+// ========== block or unblock controller (admin) ============
 export const updateUserStatus = catchAsync(async (req, res) => {
   const id = req.params.id as string;
   const { status } = req.body as { status: UserStatus };
 
+  // same guardrail, don't let an admin block themselves
   if (id === req.user!.id) throw new AppError("You can't change your own status.", 400);
 
   const target = await prisma.user.findUnique({ where: { id }, select: { id: true } });
   if (!target) throw new AppError("User not found.", 404);
 
   const user = await prisma.user.update({ where: { id }, data: { status }, select: USER_SELECT });
+
+  // blocking signs them out, unblocking doesn't need to touch their sessions
   if (status === "BLOCKED") await revokeSessions(id);
 
   res.status(200).json({

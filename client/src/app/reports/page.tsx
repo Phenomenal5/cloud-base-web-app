@@ -44,8 +44,8 @@ const TriageContent = () => {
   const [openReportId, setOpenReportId] = useState<string | null>(null);
   const { data, isFetching } = useListReportsQuery(filters);
 
-  // Any filter change goes back to page 1, since page 4 of the old result set
-  // usually doesn't exist in the new one.
+  // any filter change drops back to page 1. page 4 of the old result set usually
+  // doesn't exist in the new one
   const updateFilter = (changes: Partial<ReportFilters>) => {
     setFilters((previous) => ({ ...previous, ...changes, page: 1 }));
   };
@@ -121,7 +121,7 @@ const TriageContent = () => {
       </div>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-border">
-        {/* Only spin on the very first load. Later fetches keep the old rows on
+        {/* only spin on the very first load. later fetches keep the old rows on
             screen so the list doesn't flash on every filter change. */}
         {isFetching && !data ? (
           <div className="flex justify-center py-12">
@@ -195,8 +195,8 @@ const TriageContent = () => {
 const ReportsPage = () => {
   const router = useRouter();
   const { user, status } = useAppSelector((state) => state.auth);
-  // Cosmetic only. The API enforces the same rule, so hiding the page isn't the
-  // access control, just the UX.
+  // cosmetic only. the API enforces the same rule, so hiding this isn't the
+  // access control, it just stops people walking into a 403
   const canView = user?.role === "ANALYST" || user?.role === "ADMIN";
 
   useEffect(() => {

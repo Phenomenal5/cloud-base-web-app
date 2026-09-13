@@ -1,4 +1,4 @@
-// These mirror the backend's response shapes.
+// these mirror what the API actually sends back
 
 export type Role = 'TRAINEE' | 'ANALYST' | 'ADMIN'
 export type UserStatus = 'ACTIVE' | 'BLOCKED'
@@ -15,8 +15,8 @@ export interface User {
   createdAt: string
 }
 
-// A row in /admin/users. Narrower than User: no avatar, since the table doesn't
-// show one.
+// a row in the /admin/users table. narrower than User, no avatar, the table
+// doesn't show one
 export interface AdminUser {
   id: string
   email: string

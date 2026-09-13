@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Toaster } from 'sonner'
 
-// Keeps sonner's palette in sync with the `.dark` class ThemeToggle flips on
-// <html>. The observer is what makes it update live rather than only on load.
+// keeps sonner's palette matching the `.dark` class ThemeToggle puts on <html>.
+// the observer is what makes it follow along live instead of only on load
 export const AppToaster = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light')
 

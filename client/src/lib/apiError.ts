@@ -1,6 +1,6 @@
-// RTK Query rejects with the axiosBaseQuery shape { status, data }, and our API
-// errors are { status, message }. This digs the message out of that, or falls
-// back to something the user can read.
+// RTK Query rejects with axiosBaseQuery's shape { status, data }, and our own
+// errors are { status, message } inside that. this digs the message out, or
+// gives back something readable if it can't
 export function getApiErrorMessage(
   error: unknown,
   fallback = "Something went wrong. Please try again.",

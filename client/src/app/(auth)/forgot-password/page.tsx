@@ -28,8 +28,8 @@ const ForgotPasswordPage = () => {
     },
   });
 
-  // Worded as a conditional throughout, because the API deliberately doesn't say
-  // whether the account exists and this screen shouldn't either.
+  // everything here is worded as an if. the API deliberately won't say whether
+  // the account exists, and this screen mustn't give it away either
   if (sentTo) {
     return (
       <div className="flex flex-col gap-5">

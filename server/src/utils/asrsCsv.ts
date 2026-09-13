@@ -1,9 +1,8 @@
 import Papa from "papaparse";
 import type { RawReport } from "../services/ingestionService.js";
 
-// Maps an ASRS CSV export to RawReport[]. ASRS exports don't use consistent
-// header names, so matching is case-insensitive across a few known aliases.
-// Shared by the seed script and the ingestion worker.
+// turns an ASRS CSV export into RawReport[]. their exports don't use consistent
+// column names, so we match case-insensitively against the aliases below
 
 const HEADER_ALIASES: Record<keyof RawReport, string[]> = {
   acn: ["acn", "accession number", "accessionnumber", "id"],
@@ -12,6 +11,7 @@ const HEADER_ALIASES: Record<keyof RawReport, string[]> = {
   reportDate: ["reportdate", "date", "report date", "time / day", "date / time"],
 };
 
+// first alias that matches a column and has something in it wins
 function pick(row: Record<string, string>, aliases: string[]): string | undefined {
   const entries = Object.entries(row);
   for (const alias of aliases) {
@@ -21,13 +21,14 @@ function pick(row: Record<string, string>, aliases: string[]): string | undefine
   return undefined;
 }
 
-// Rows without an ACN or a narrative are unusable, so they're dropped here rather
-// than failing the whole upload.
 function toRawReport(row: Record<string, string>): RawReport | null {
+  // no ACN or no narrative and the row is useless. drop it rather than failing
+  // the entire upload over one bad line
   const acn = pick(row, HEADER_ALIASES.acn);
   const narrative = pick(row, HEADER_ALIASES.narrative);
   if (!acn || !narrative) return null;
 
+  // dates in these exports are all over the place, so keep it only if it parses
   const rawDate = pick(row, HEADER_ALIASES.reportDate);
   const reportDate = rawDate ? new Date(rawDate) : null;
 

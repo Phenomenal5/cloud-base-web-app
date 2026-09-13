@@ -1,6 +1,6 @@
-// Errors we throw deliberately: bad input, not found, forbidden, over quota.
-// The global handler uses isOperational to decide whether the message is safe to
-// show the client or should be hidden behind a generic 500.
+// the errors we throw on purpose: bad input, not found, forbidden, over quota.
+// isOperational is the flag the global handler reads to decide whether this
+// message is safe to show a user or should be swapped for a generic 500
 
 export default class AppError extends Error {
   readonly statusCode: number;

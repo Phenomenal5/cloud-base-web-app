@@ -7,11 +7,13 @@ import { Plane } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
-// Shared shell for the auth pages. Also bounces signed-in users into the app.
+// shared shell for the auth pages, and it bounces signed-in users into the app.
 //
-// This status-driven redirect is the reliable one. The pages push to /chat too,
-// but that can run before setUser commits and get dropped, which made sign-in
-// look like it did nothing. Keep the target at /chat or the two fight.
+// this status-driven redirect is the reliable one. the pages push to /chat as
+// well for speed, but that push can run before the login mutation's setUser has
+// committed and just get dropped, which is why sign-in sometimes looked like it
+// did nothing. reacting to committed status can't race. keep the target at
+// /chat, matching the pages, or the two fight over where to go
 const AuthLayout = ({ children }: { children: ReactNode }) => {
   const router = useRouter();
   const status = useAppSelector((state) => state.auth.status);

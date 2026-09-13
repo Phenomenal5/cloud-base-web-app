@@ -2,9 +2,7 @@ import { prisma } from "../config/prisma.js";
 import { logger } from "../config/logger.js";
 import type { AiOperation } from "../generated/prisma/enums.js";
 
-// Fire and forget: recording usage must never block or fail the AI call it's
-// measuring. Only called when there's a real provider response, so the dev
-// fallbacks record nothing.
+// fire and forget. measuring a call must never be the thing that breaks it
 
 interface OpenAiUsage {
   prompt_tokens?: number;
@@ -17,8 +15,11 @@ export function recordTokenUsage(
   model: string,
   usage: OpenAiUsage | null | undefined,
 ): void {
+  // no usage block means it wasn't a real provider call, so nothing to record.
+  // that's how the dev stubs stay out of the numbers
   if (!usage) return;
 
+  // deliberately not awaited, and the catch only logs
   void prisma.tokenUsage
     .create({
       data: {

@@ -7,8 +7,8 @@ import { useAppSelector } from "@/store/hooks";
 const CTA_CLASS =
   "inline-flex items-center gap-2 rounded-lg bg-brand px-6 py-3 text-sm font-medium text-white transition hover:opacity-90";
 
-// /api/ask is optionalAuth, so anyone can start asking. We lead with that and
-// only mention accounts as the way to keep your history.
+// /api/ask is optionalAuth, so anyone can just start asking. lead with that and
+// only mention an account as the way to keep your history
 export const HomeCta = () => {
   const { user, status } = useAppSelector((state) => state.auth);
 
@@ -25,7 +25,7 @@ export const HomeCta = () => {
     );
   }
 
-  // Guests, and anyone whose session is still resolving.
+  // guests, plus anyone whose session hasn't resolved yet
   return (
     <div className="mt-8 flex flex-col items-center gap-4">
       <Link href="/chat" className={CTA_CLASS}>

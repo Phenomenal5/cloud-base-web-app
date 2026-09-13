@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
 
-// Where Google sends the browser back to. The backend has already set the
-// session cookies by this point, so we just wait for AuthProvider's /auth/me to
-// resolve and route accordingly. The target matches the other auth pages so the
-// redirects never fight.
+// where google drops the browser back. the backend has already set the session
+// cookies by the time we get here, so all this does is wait for AuthProvider's
+// /auth/me to resolve and then route. same target as the other auth pages, or
+// the two redirects fight each other
 const OAuthCallbackPage = () => {
   const router = useRouter();
   const status = useAppSelector((state) => state.auth.status);

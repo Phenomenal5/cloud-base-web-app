@@ -5,10 +5,10 @@ import tseslint from "typescript-eslint";
 import eslintConfigPrettier from "eslint-config-prettier";
 import { defineConfig, globalIgnores } from "eslint/config";
 
-// Flat config (ESLint 10). No type-aware linting, to keep lint fast and free of
-// tsconfig `project` wiring. `npm run typecheck` covers type correctness.
+// flat config, eslint 10. no type-aware linting on purpose, it keeps lint fast
+// and free of tsconfig `project` wiring. `npm run typecheck` covers the types
 export default defineConfig([
-  // Build output and the generated Prisma client are never linted.
+  // never lint build output or the generated prisma client
   globalIgnores(["dist", "src/generated"]),
   {
     files: ["**/*.ts"],
@@ -17,17 +17,17 @@ export default defineConfig([
       globals: { ...globals.node },
     },
     rules: {
-      // Use the Winston logger, not console. The few intentional boot-time
-      // console calls (before the logger is up) carry their own disable comments.
+      // use the winston logger, not console. the handful of deliberate boot-time
+      // console calls, from before the logger exists, carry their own disable lines
       "no-console": "warn",
-      // Underscore-prefixed args/vars/catch bindings are intentionally unused
-      // (house convention: `_req`, `_file`, `_error`).
+      // anything prefixed with an underscore is unused on purpose, that's the
+      // convention here: `_req`, `_file`, `_error`
       "@typescript-eslint/no-unused-vars": [
         "error",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
       ],
     },
   },
-  // Turn off rules that conflict with Prettier. Must be last.
+  // turn off whatever conflicts with prettier. has to be last
   eslintConfigPrettier,
 ]);

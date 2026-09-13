@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { Toaster } from "sonner";
 
-// Keeps sonner's theme in sync with our class-based dark mode. The observer is
-// what makes it update live when the theme is toggled, rather than only on load.
+// keeps sonner's theme matching our class-based dark mode. the observer is what
+// makes it follow along live when someone toggles, instead of only on load
 export const AppToaster = () => {
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
